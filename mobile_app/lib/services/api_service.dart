@@ -9,7 +9,7 @@ class ApiService {
       : baseUrl = baseUrl ??
             dotenv.env['API_BASE_URL'] ??
             dotenv.env['SERVER_URL'] ??
-            'http://13.205.189.169:3010';
+            'https://apitrading.iqsync.in';
 
   void updateBaseUrl(String url) {
     if (url.endsWith('/')) {

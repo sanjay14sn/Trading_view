@@ -31,6 +31,7 @@ const postSignal = async (req, res) => {
             price: rawSignal.price, metadata: rawSignal, receivedAt: new Date(), status: 'pending'
         };
 
+        let signalDoc;
         if (isDbConnected()) {
             signalDoc = await Signal.create(initialData);
         } else {

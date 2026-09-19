@@ -58,7 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(
                     controller: _urlController,
                     decoration: InputDecoration(
-                      hintText: 'http://13.205.189.169:3010 or https://xxx.ngrok-free.dev',
+                      hintText: 'https://apitrading.iqsync.in or https://xxx.ngrok-free.dev',
                       filled: true,
                       fillColor: AppTheme.background,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
@@ -74,9 +74,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       ActionChip(
                         avatar: const Icon(Icons.cloud_done, size: 14, color: AppTheme.buyGreen),
-                        label: const Text('Live Server (3010)', style: TextStyle(fontSize: 11)),
+                        label: const Text('Production API', style: TextStyle(fontSize: 11)),
                         onPressed: () {
-                          _urlController.text = 'http://13.205.189.169:3010';
+                          _urlController.text = 'https://apitrading.iqsync.in';
                         },
                       ),
                       ActionChip(

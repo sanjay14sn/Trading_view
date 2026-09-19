@@ -16,7 +16,7 @@ class SocketService {
       socket = io.io(
         serverUrl,
         io.OptionBuilder()
-            .setTransports(['websocket', 'polling'])
+            .setTransports(['polling', 'websocket'])
             .disableAutoConnect()
             .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
             .build(),

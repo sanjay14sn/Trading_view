@@ -45,7 +45,7 @@ class TradingProvider extends ChangeNotifier {
     // Default URL from dotenv or fallback
     _serverUrl = dotenv.env['SERVER_URL'] ??
         dotenv.env['API_BASE_URL'] ??
-        'http://13.205.189.169:3010';
+        'https://apitrading.iqsync.in';
     _apiService = ApiService(baseUrl: _serverUrl);
     _socketService = SocketService();
 
@@ -108,6 +108,7 @@ class TradingProvider extends ChangeNotifier {
 
   Future<void> _autoDiscoverServer() async {
     final candidateUrls = [
+      'https://apitrading.iqsync.in',
       'http://13.205.189.169:3010',
       'https://grained-nontelegraphical-gwen.ngrok-free.dev',
       'http://10.255.198.129:3001',

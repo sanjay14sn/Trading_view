@@ -30,18 +30,13 @@ class DashboardScreen extends StatelessWidget {
 
               const SizedBox(height: 14),
 
-              // 📊 Quick Stats Grid (Total Signals & Active Trades)
+              // 📊 Quick Stats Grid (Total Signals)
               _buildStatsGrid(context, provider),
 
               const SizedBox(height: 16),
 
               // 🛡️ System & Storage Engine Card
               _buildSystemHealthCard(context, provider),
-
-              const SizedBox(height: 20),
-
-              // ⚡ Active Positions Header & Container
-              _buildActivePositionsSection(context, provider),
             ],
           ),
         ),
@@ -319,140 +314,64 @@ class DashboardScreen extends StatelessWidget {
 
   // 📊 Quick Stats Grid
   Widget _buildStatsGrid(BuildContext context, TradingProvider provider) {
-    return Row(
-      children: [
-        // Card 1: Total Signals
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4F7FF),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDBEAFE),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.show_chart_rounded,
-                        color: Color(0xFF2563EB),
-                        size: 16,
-                      ),
-                    ),
-                    const Flexible(
-                      child: Text(
-                        'Total Signals',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F7FF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDBEAFE),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${provider.totalSignalsToday}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.bar_chart_rounded,
-                      color: Color(0xFFCBD5E1),
-                      size: 24,
-                    ),
-                  ],
+                child: const Icon(
+                  Icons.show_chart_rounded,
+                  color: Color(0xFF2563EB),
+                  size: 20,
                 ),
-              ],
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Total Signals Today',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Real-time alerts processed',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Text(
+            '${provider.totalSignalsToday}',
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF2563EB),
             ),
           ),
-        ),
-
-        const SizedBox(width: 10),
-
-        // Card 2: Active Trades
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF9F0),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFFEF3C7)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.work_outline_rounded,
-                        color: Color(0xFFD97706),
-                        size: 16,
-                      ),
-                    ),
-                    const Flexible(
-                      child: Text(
-                        'Active Trades',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${provider.activePositions}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFFD97706),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.bar_chart_rounded,
-                      color: Color(0xFFCBD5E1),
-                      size: 24,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -620,148 +539,6 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  // ⚡ Active Positions Container
-  Widget _buildActivePositionsSection(BuildContext context, TradingProvider provider) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: const [
-                Icon(Icons.insert_chart_outlined_rounded, color: AppTheme.buyGreen, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Active Positions',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${provider.activeTrades.length} Active',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        if (provider.activeTrades.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(28.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: Column(
-              children: const [
-                Icon(
-                  Icons.card_travel_outlined,
-                  size: 44,
-                  color: AppTheme.textLight,
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'No active positions',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          ...provider.activeTrades.map((trade) => _buildTradeTile(context, provider, trade)),
-      ],
-    );
-  }
-
-  Widget _buildTradeTile(BuildContext context, TradingProvider provider, dynamic trade) {
-    final symbol = trade['symbol'] ?? 'N/A';
-    final action = (trade['action'] ?? 'BUY').toString().toUpperCase();
-    final isBuy = action == 'BUY';
-    final price = trade['entryPrice'] ?? 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: isBuy ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-          child: Text(
-            action,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: isBuy ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
-            ),
-          ),
-        ),
-        title: Text(symbol, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('Qty: ${trade['quantity']} • Price: ₹$price', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.sellRed,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          onPressed: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: Colors.white,
-                title: const Text('Exit Position?'),
-                content: Text('Are you sure you want to close position $symbol manually?'),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Confirm Exit', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
-              ),
-            );
-
-            if (confirm == true) {
-              final success = await provider.closeTradeManually(trade['_id']);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(success ? 'Trade exited successfully' : 'Failed to exit trade')),
-                );
-              }
-            }
-          },
-          child: const Text('Exit', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
       ),
     );
   }
