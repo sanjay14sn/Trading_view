@@ -47,7 +47,7 @@ class ApiService {
     try {
       final response = await http
           .get(Uri.parse('$baseUrl/dashboard'), headers: _defaultHeaders)
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
@@ -64,7 +64,7 @@ class ApiService {
           ? Uri.parse('$baseUrl/trades?status=$status')
           : Uri.parse('$baseUrl/trades');
       final response =
-          await http.get(uri, headers: _defaultHeaders).timeout(const Duration(seconds: 5));
+          await http.get(uri, headers: _defaultHeaders).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       }
@@ -79,7 +79,7 @@ class ApiService {
     try {
       final response = await http
           .get(Uri.parse('$baseUrl/signals'), headers: _defaultHeaders)
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       }
