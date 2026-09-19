@@ -6,6 +6,7 @@ import '../widgets/signal_alert_overlay.dart';
 import 'dashboard_screen.dart';
 import 'trades_screen.dart';
 import 'signals_screen.dart';
+import 'reports_screen.dart';
 import 'settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -35,6 +36,7 @@ class _MainScreenState extends State<MainScreen> {
     DashboardScreen(),
     TradesScreen(),
     SignalsScreen(),
+    ReportsScreen(),
     SettingsScreen(),
   ];
 
@@ -61,14 +63,15 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(0, Icons.home_rounded, 'Home'),
                 _buildNavItem(1, Icons.swap_horiz_rounded, 'Trades'),
                 _buildNavItem(2, Icons.sensors_rounded, 'Signals'),
-                _buildNavItem(3, Icons.settings_rounded, 'Settings'),
+                _buildNavItem(3, Icons.bar_chart_rounded, 'Reports'),
+                _buildNavItem(4, Icons.settings_rounded, 'Settings'),
               ],
             ),
           ),
@@ -89,12 +92,12 @@ class _MainScreenState extends State<MainScreen> {
       },
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),

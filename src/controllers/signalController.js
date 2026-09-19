@@ -107,6 +107,7 @@ const postSignal = async (req, res) => {
             symbol: futuresSymbol,
             action: rawSignal.action,
             price: rawSignal.price,
+            receivedAt: signalDoc.receivedAt || new Date().toISOString(),
             tradeId: trade ? trade._id : null
         });
 

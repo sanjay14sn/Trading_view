@@ -63,6 +63,9 @@ class TradingProvider extends ChangeNotifier {
     _socketService.onSignalReceived = (data) {
       if (data != null) {
         final mapData = Map<String, dynamic>.from(data as Map);
+        if (!mapData.containsKey('receivedAt') || mapData['receivedAt'] == null) {
+          mapData['receivedAt'] = DateTime.now().toIso8601String();
+        }
         _signals.insert(0, mapData);
         fetchDashboard();
         notifyListeners();

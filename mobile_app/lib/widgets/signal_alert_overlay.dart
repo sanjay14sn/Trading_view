@@ -34,7 +34,7 @@ class SignalAlertOverlay extends StatefulWidget {
 
   static void _triggerSoundAndHaptics() async {
     try {
-      // Route audio directly to ALARM & SPEAKER STREAM at MAXIMUM 100% volume!
+      // Route audio to ALARM stream at MAXIMUM volume
       await _player.setAudioContext(AudioContext(
         android: const AudioContextAndroid(
           isSpeakerphoneOn: true,
@@ -53,20 +53,28 @@ class SignalAlertOverlay extends StatefulWidget {
 
       await _player.stop();
       await _player.setVolume(1.0);
-
-      // Play offline high-volume local alert sound
+      // 🔁 Loop the sound so it rings for the full 15 seconds
+      await _player.setReleaseMode(ReleaseMode.loop);
       await _player.play(AssetSource('sounds/alert.wav'));
     } catch (e) {
       print('AudioPlayer asset error: $e');
     }
 
     try {
-      // Trigger 5 repeated heavy vibration and system alert sound bursts
+      // Trigger 5 repeated heavy vibration bursts
       for (int i = 0; i < 5; i++) {
         HapticFeedback.heavyImpact();
         SystemSound.play(SystemSoundType.alert);
         await Future.delayed(const Duration(milliseconds: 180));
       }
+    } catch (_) {}
+  }
+
+  /// Call this to stop the looping sound (on dismiss or auto-close)
+  static Future<void> stopSound() async {
+    try {
+      await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.release);
     } catch (_) {}
   }
 
@@ -91,6 +99,7 @@ class _SignalAlertOverlayState extends State<SignalAlertOverlay> with SingleTick
     _countdownController.reverse(from: 1.0);
 
     _dismissTimer = Timer(const Duration(seconds: 15), () {
+      SignalAlertOverlay.stopSound(); // ⏹ Stop sound after 15s
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);
       }
@@ -101,6 +110,7 @@ class _SignalAlertOverlayState extends State<SignalAlertOverlay> with SingleTick
   void dispose() {
     _countdownController.dispose();
     _dismissTimer?.cancel();
+    SignalAlertOverlay.stopSound(); // ⏹ Stop sound when dismissed manually too
     super.dispose();
   }
 

@@ -63,13 +63,26 @@ class SignalsScreen extends StatelessWidget {
     final isBuy = action == 'BUY';
     final price = signal['price'] ?? 0;
     final status = (signal['status'] ?? 'pending').toString();
-    final receivedAtStr = signal['receivedAt'];
+    final receivedAtVal = signal['receivedAt'] ?? signal['createdAt'] ?? signal['timestamp'];
 
     String formattedTime = 'Just now';
-    if (receivedAtStr != null) {
+    if (receivedAtVal != null) {
       try {
-        final dt = DateTime.parse(receivedAtStr.toString());
-        formattedTime = DateFormat('hh:mm:ss a').format(dt);
+        DateTime dt;
+        if (receivedAtVal is DateTime) {
+          dt = receivedAtVal.toLocal();
+        } else if (receivedAtVal is int) {
+          dt = DateTime.fromMillisecondsSinceEpoch(receivedAtVal).toLocal();
+        } else {
+          dt = DateTime.parse(receivedAtVal.toString()).toLocal();
+        }
+        final now = DateTime.now();
+        final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+        if (isToday) {
+          formattedTime = DateFormat('hh:mm:ss a').format(dt);
+        } else {
+          formattedTime = DateFormat('dd MMM, hh:mm:ss a').format(dt);
+        }
       } catch (_) {}
     }
 
