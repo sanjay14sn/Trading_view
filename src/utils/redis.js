@@ -1,0 +1,57 @@
+const Redis = require('ioredis');
+const config = require('../config');
+const { logError } = require('./logger');
+
+let redis;
+
+const createMockRedis = () => {
+    const store = new Map();
+    const mock = {
+        get: async (key) => store.get(key),
+        set: async (key, val, mode, expiry) => {
+            store.set(key, val);
+            if (mode === 'PX' || mode === 'EX') {
+                setTimeout(() => store.delete(key), mode === 'PX' ? expiry : expiry * 1000);
+            }
+            return 'OK';
+        },
+        setnx: async (key, val) => {
+            if (store.has(key)) return 0;
+            store.set(key, val);
+            return 1;
+        },
+        del: async (key) => store.delete(key),
+        on: () => { },
+        isMock: true,
+        status: 'ready'
+    };
+    return mock;
+};
+
+const realRedis = new Redis(config.redis.url, {
+    maxRetriesPerRequest: null,
+    enableOfflineQueue: false,
+    connectTimeout: 2000,
+    retryStrategy: () => null
+});
+
+const mockRedis = createMockRedis();
+let useMock = false;
+
+realRedis.on('error', (err) => {
+    if (!useMock) {
+        console.warn('⚠️  Redis connection failed. Switching to internal mock.');
+        useMock = true;
+    }
+});
+
+// Proxy handler to switch between real and mock
+redis = new Proxy(realRedis, {
+    get: (target, prop) => {
+        if (prop === 'isMock') return useMock;
+        if (useMock && prop in mockRedis) return mockRedis[prop];
+        return target[prop];
+    }
+});
+
+module.exports = redis;

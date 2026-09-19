@@ -1,0 +1,195 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
+import '../services/api_service.dart';
+import '../services/socket_service.dart';
+import '../services/notification_service.dart';
+
+class TradingProvider extends ChangeNotifier {
+  late ApiService _apiService;
+  late SocketService _socketService;
+
+  late String _serverUrl;
+  bool _isLoading = false;
+  bool _isServerOnline = false;
+
+  Map<String, dynamic>? _dashboardData;
+  List<dynamic> _trades = [];
+  List<dynamic> _signals = [];
+
+  Timer? _autoRefreshTimer;
+
+  String get serverUrl => _serverUrl;
+  bool get isLoading => _isLoading;
+  bool get isServerOnline => _isServerOnline;
+  bool get isSocketConnected => _socketService.isConnected;
+
+  Map<String, dynamic>? get dashboardData => _dashboardData;
+  List<dynamic> get trades => _trades;
+  List<dynamic> get signals => _signals;
+
+  List<dynamic> get activeTrades => _trades.where((t) => t['status'] == 'OPEN' || t['status'] == 'PENDING' || t['status'] == 'QUEUED').toList();
+
+  double get dailyPnl {
+    if (_dashboardData != null && _dashboardData!['dailyPnl'] != null) {
+      return (_dashboardData!['dailyPnl'] as num).toDouble();
+    }
+    return 0.0;
+  }
+
+  int get totalSignalsToday => _dashboardData?['totalSignalsToday'] ?? 0;
+  int get activePositions => _dashboardData?['activePositions'] ?? 0;
+
+  TradingProvider() {
+    // Default URL preference order
+    _serverUrl = 'https://grained-nontelegraphical-gwen.ngrok-free.dev';
+    _apiService = ApiService(baseUrl: _serverUrl);
+    _socketService = SocketService();
+
+    _setupSocketListeners();
+    initConnection();
+  }
+
+  Function(Map<String, dynamic> data)? onSignalAlertReceived;
+
+  void _setupSocketListeners() {
+    _socketService.onConnectionChanged = () {
+      notifyListeners();
+    };
+
+    _socketService.onSignalReceived = (data) {
+      if (data != null) {
+        final mapData = Map<String, dynamic>.from(data as Map);
+        _signals.insert(0, mapData);
+        fetchDashboard();
+        notifyListeners();
+
+        // High priority system push notification (works in background & lock screen)
+        LocalNotificationService.showSignalNotification(mapData);
+
+        // Full screen 15s popup
+        onSignalAlertReceived?.call(mapData);
+      }
+    };
+
+    _socketService.onOrderPlaced = (data) {
+      fetchTrades();
+      fetchDashboard();
+    };
+
+    _socketService.onTradeClosed = (data) {
+      fetchTrades();
+      fetchDashboard();
+    };
+  }
+
+  Future<void> initConnection() async {
+    await refreshAll();
+
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      refreshAll(silent: true);
+    });
+  }
+
+  Future<void> updateServerUrl(String newUrl) async {
+    String formattedUrl = newUrl.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = 'http://$formattedUrl';
+    }
+    _serverUrl = formattedUrl;
+    _apiService.updateBaseUrl(_serverUrl);
+    _socketService.connect(_serverUrl);
+    await refreshAll();
+  }
+
+  Future<void> _autoDiscoverServer() async {
+    final candidateUrls = [
+      'https://grained-nontelegraphical-gwen.ngrok-free.dev',
+      'http://10.255.198.129:3001',
+      (!kIsWeb && Platform.isAndroid) ? 'http://10.0.2.2:3001' : 'http://localhost:3001',
+      'http://localhost:3001',
+    ];
+
+    for (final candidate in candidateUrls) {
+      if (candidate == _serverUrl) continue;
+      final tempApi = ApiService(baseUrl: candidate);
+      final isAlive = await tempApi.checkHealth();
+      if (isAlive) {
+        print('⚡ Auto-discovered active server at $candidate');
+        _serverUrl = candidate;
+        _apiService.updateBaseUrl(_serverUrl);
+        _socketService.connect(_serverUrl);
+        return;
+      }
+    }
+  }
+
+  Future<void> refreshAll({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      notifyListeners();
+    }
+
+    _isServerOnline = await _apiService.checkHealth();
+
+    // If offline, attempt auto-discovery
+    if (!_isServerOnline) {
+      await _autoDiscoverServer();
+      _isServerOnline = await _apiService.checkHealth();
+    }
+
+    if (_isServerOnline) {
+      if (!_socketService.isConnected) {
+        _socketService.connect(_serverUrl);
+      }
+      await Future.wait([
+        fetchDashboard(),
+        fetchTrades(),
+        fetchSignals(),
+      ]);
+    } else {
+      _dashboardData = null;
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> fetchDashboard() async {
+    final data = await _apiService.getDashboard();
+    if (data != null) {
+      _dashboardData = data;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchTrades() async {
+    final list = await _apiService.getTrades();
+    _trades = list;
+    notifyListeners();
+  }
+
+  Future<void> fetchSignals() async {
+    final list = await _apiService.getSignals();
+    _signals = list;
+    notifyListeners();
+  }
+
+  Future<bool> closeTradeManually(String tradeId) async {
+    final res = await _apiService.closeTrade(tradeId);
+    if (res != null) {
+      await fetchTrades();
+      await fetchDashboard();
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _socketService.disconnect();
+    super.dispose();
+  }
+}

@@ -1,0 +1,13 @@
+2026-04-05 13:11:55 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":22000,"receivedAt":"2026-04-05T07:41:55.393Z"}
+2026-04-05 13:11:55 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":22005,"receivedAt":"2026-04-05T07:41:55.715Z"}
+2026-04-05 13:24:54 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22730","receivedAt":"2026-04-05T07:54:54.670Z"}
+2026-04-05 13:43:15 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22790","receivedAt":"2026-04-05T08:13:15.908Z"}
+2026-04-05 14:41:29 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22790","receivedAt":"2026-04-05T09:11:29.583Z"}
+2026-04-05 14:42:43 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"SELL","price":"22890","receivedAt":"2026-04-05T09:12:43.436Z"}
+2026-04-05 14:44:39 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22690","receivedAt":"2026-04-05T09:14:39.363Z"}
+2026-04-05 14:45:08 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"SELL","price":"22790","receivedAt":"2026-04-05T09:15:08.133Z"}
+2026-04-05 14:45:51 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"SELL","price":"22790","receivedAt":"2026-04-05T09:15:51.646Z"}
+2026-04-05 14:46:52 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22890","receivedAt":"2026-04-05T09:16:52.687Z"}
+2026-04-05 14:48:49 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"sell","price":"22990","receivedAt":"2026-04-05T09:18:49.041Z"}
+2026-04-05 14:49:21 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"BUY","price":"22790","receivedAt":"2026-04-05T09:19:21.671Z"}
+2026-04-05 14:50:10 [INFO]: Signal Received: {"symbol":"NIFTY FUT","action":"sell","price":"22690","receivedAt":"2026-04-05T09:20:10.062Z"}

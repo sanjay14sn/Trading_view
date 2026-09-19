@@ -1,0 +1,134 @@
+const mongoose = require('mongoose');
+const Signal = require('../models/Signal');
+const Trade = require('../models/Trade');
+const deduplication = require('../services/deduplicationService');
+const marketHours = require('../services/marketHoursService');
+const riskManager = require('../services/riskManager');
+const tradeLifecycle = require('../services/tradeLifecycleManager');
+const { addOrderToQueue } = require('../queues/orderQueue');
+const instrumentMapper = require('../services/instrumentMapper');
+const socketService = require('../services/socketService');
+const notificationService = require('../services/notificationService');
+const { logSignal, logError, logAction } = require('../utils/logger');
+const mockStore = require('../utils/mockStore');
+
+const isDbConnected = () => mongoose.connection.readyState === 1;
+
+/**
+ * Signal Controller
+ * The heart of the trading engine processing incoming TradingView webhooks.
+ */
+const postSignal = async (req, res) => {
+    try {
+        const rawSignal = req.body;
+        console.log(`🎯 Received signal: ${rawSignal.symbol} ${rawSignal.action}`);
+
+        // 1. Persist (DB or Mock)
+        const futuresSymbol = instrumentMapper.getFuturesSymbol(rawSignal.symbol);
+        const initialData = {
+            symbol: futuresSymbol, rawSymbol: rawSignal.symbol, action: rawSignal.action.toUpperCase(),
+            price: rawSignal.price, metadata: rawSignal, receivedAt: new Date(), status: 'pending'
+        };
+
+        if (isDbConnected()) {
+            signalDoc = await Signal.create(initialData);
+        } else {
+            signalDoc = { ...initialData, _id: `mock_sig_${Date.now()}`, updateOne: async (u) => Object.assign(signalDoc, u) };
+            mockStore.signals.push(signalDoc);
+        }
+
+        // Notify Signal Received
+        notificationService.notifySignalReceived(signalDoc);
+
+        // 2. Step-by-Step Validation & Filter Strategy
+
+        // A. Deduplication (Redis-backed)
+        const isDup = await deduplication.isDuplicate(rawSignal);
+        if (isDup) {
+            await signalDoc.updateOne({ status: 'duplicate' });
+            return res.status(200).json({ status: "ignored", reason: "duplicate" });
+        }
+
+        // B. Market Hours
+        if (!marketHours.isMarketOpen()) {
+            await signalDoc.updateOne({ status: 'rejected', rejectionReason: 'outside_market_hours' });
+            return res.status(200).json({ status: "ignored", reason: "market_closed" });
+        }
+
+        // C. Risk Management (Concurrent trades, Daily limits, Cooldowns)
+        const riskResult = await riskManager.canTrade(rawSignal);
+        if (!riskResult.allowed) {
+            await signalDoc.updateOne({ status: 'risk_blocked', rejectionReason: riskResult.reason });
+            notificationService.notifyRiskAlert(riskResult.reason, riskResult.stats);
+            return res.status(200).json({ status: "ignored", reason: riskResult.reason });
+        }
+
+        // 3. Mapping & Pre-processing (already done above)
+
+        // 4. Trade Initiation
+        const tradeQuantity = rawSignal.quantity || 1;
+        const trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, rawSignal.action.toUpperCase(), tradeQuantity, rawSignal.price);
+
+        // 5. Broadcast to Dashboard
+        socketService.emitEvent('signal_received', {
+            id: signalDoc._id,
+            symbol: futuresSymbol,
+            action: rawSignal.action,
+            price: rawSignal.price,
+            tradeId: trade._id
+        });
+
+        // 6. Queue for Asynchronous Zerodha Execution (BullMQ)
+        await addOrderToQueue({
+            symbol: futuresSymbol,
+            action: rawSignal.action.toUpperCase(),
+            quantity: tradeQuantity,
+            price: rawSignal.price
+        }, trade._id);
+
+        // 7. Start Cooldown for this symbol
+        await riskManager.startCooldown(futuresSymbol);
+
+        // 8. Log success
+        logSignal(signalDoc, 'accepted');
+
+        // Return 202 Accepted to TradingView
+        res.status(202).json({
+            status: "accepted",
+            signalId: signalDoc._id,
+            tradeId: trade._id
+        });
+
+    } catch (error) {
+        logError(`Signal processing failed: ${error.message}`, { body: req.body });
+        res.status(500).json({ error: "Processing Error" });
+    }
+};
+
+/**
+ * Enhanced Dashboard Data Method
+ */
+const getDashboard = async (req, res) => {
+    try {
+        const riskStats = await riskManager.getStats();
+        const activeTrades = isDbConnected() ? await Trade.find({ status: 'OPEN' }) : mockStore.trades.filter(t => t.status === 'OPEN');
+        const redisClient = require('../utils/redis');
+
+        res.json({
+            totalSignalsToday: isDbConnected() ? await Signal.countDocuments() : mockStore.signals.length,
+            activePositions: activeTrades.length,
+            dailyPnl: riskStats.dailyPnl || 0,
+            lastSignals: isDbConnected() ? await Signal.find().sort({ receivedAt: -1 }).limit(10) : mockStore.signals.slice(-10).reverse(),
+            status: riskStats.isStopped ? "stopped" : "active",
+            riskStats: { ...riskStats, isRedisMock: !!redisClient.isMock, isDbMock: !isDbConnected() }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const getSignals = async (req, res) => {
+    res.json(isDbConnected() ? await Signal.find().sort({ receivedAt: -1 }).limit(50) : mockStore.signals.slice(-50).reverse());
+};
+
+module.exports = { postSignal, getDashboard, getSignals, mockStore };
