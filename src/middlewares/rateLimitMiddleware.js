@@ -16,8 +16,8 @@ const webhookLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per 15 mins for standard API
-    skip: (req) => req.ip === '::1' || req.ip === '127.0.0.1', // Whitelist local for dev
+    max: 5000, // Limit each IP to 5000 requests per 15 mins for standard API
+    skip: (req) => req.ip === '::1' || req.ip === '127.0.0.1' || req.path === '/health',
     message: {
         error: 'Too many requests from this IP, please try again after 15 minutes'
     }

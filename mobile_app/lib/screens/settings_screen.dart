@@ -58,7 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(
                     controller: _urlController,
                     decoration: InputDecoration(
-                      hintText: 'http://localhost:3001 or https://xxx.ngrok-free.dev',
+                      hintText: 'http://13.205.189.169:3010 or https://xxx.ngrok-free.dev',
                       filled: true,
                       fillColor: AppTheme.background,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
@@ -73,24 +73,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     runSpacing: 8,
                     children: [
                       ActionChip(
+                        avatar: const Icon(Icons.cloud_done, size: 14, color: AppTheme.buyGreen),
+                        label: const Text('Live Server (3010)', style: TextStyle(fontSize: 11)),
+                        onPressed: () {
+                          _urlController.text = 'http://13.205.189.169:3010';
+                        },
+                      ),
+                      ActionChip(
                         avatar: const Icon(Icons.cloud, size: 14, color: AppTheme.primary),
                         label: const Text('ngrok Tunnel', style: TextStyle(fontSize: 11)),
                         onPressed: () {
                           _urlController.text = 'https://grained-nontelegraphical-gwen.ngrok-free.dev';
-                        },
-                      ),
-                      ActionChip(
-                        avatar: const Icon(Icons.wifi, size: 14, color: AppTheme.buyGreen),
-                        label: const Text('Wi-Fi Local IP', style: TextStyle(fontSize: 11)),
-                        onPressed: () {
-                          _urlController.text = 'http://10.255.198.129:3001';
-                        },
-                      ),
-                      ActionChip(
-                        avatar: const Icon(Icons.phone_android, size: 14, color: AppTheme.warningOrange),
-                        label: const Text('Android Emulator', style: TextStyle(fontSize: 11)),
-                        onPressed: () {
-                          _urlController.text = 'http://10.0.2.2:3001';
                         },
                       ),
                       ActionChip(

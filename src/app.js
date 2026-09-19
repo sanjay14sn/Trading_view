@@ -13,14 +13,7 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 
-// 🚦 Rate Limiting (Applied globally to all API routes)
-app.use('/', apiLimiter);
-
-// 📦 Body Parser
-app.use(express.json({ limit: '10kb', type: ['application/json', 'text/plain'] }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// 🏥 Health Check
+// 🏥 Health Check (Exempt from rate limiting)
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
@@ -28,6 +21,9 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
+
+// 🚦 Rate Limiting (Applied to remaining API routes)
+app.use('/', apiLimiter);
 
 // 🚀 Routes
 app.use('/', signalRoutes);

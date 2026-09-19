@@ -10,6 +10,7 @@ const instrumentMapper = require('../services/instrumentMapper');
 const socketService = require('../services/socketService');
 const notificationService = require('../services/notificationService');
 const { logSignal, logError, logAction } = require('../utils/logger');
+const config = require('../config');
 const mockStore = require('../utils/mockStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -65,29 +66,35 @@ const postSignal = async (req, res) => {
 
         // 3. Mapping & Pre-processing (already done above)
 
-        // 4. Trade Initiation
-        const tradeQuantity = rawSignal.quantity || 1;
-        const trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, rawSignal.action.toUpperCase(), tradeQuantity, rawSignal.price);
+        // 4. Trade Initiation (Skipped if config.takePositions is false)
+        let trade = null;
+        if (config.takePositions) {
+            const tradeQuantity = rawSignal.quantity || 1;
+            trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, rawSignal.action.toUpperCase(), tradeQuantity, rawSignal.price);
 
-        // 5. Broadcast to Dashboard
+            // Queue for Asynchronous Zerodha Execution (BullMQ)
+            await addOrderToQueue({
+                symbol: futuresSymbol,
+                action: rawSignal.action.toUpperCase(),
+                quantity: tradeQuantity,
+                price: rawSignal.price
+            }, trade._id);
+
+            // Start Cooldown for this symbol
+            await riskManager.startCooldown(futuresSymbol);
+        } else {
+            console.log(`ℹ️ Signal received & alerted, but active position taking is DISABLED (TAKE_POSITIONS=false).`);
+            await signalDoc.updateOne({ status: 'signal_only' });
+        }
+
+        // 5. Broadcast to Dashboard & Mobile App (Triggers Telegram & full-screen call alert on mobile)
         socketService.emitEvent('signal_received', {
             id: signalDoc._id,
             symbol: futuresSymbol,
             action: rawSignal.action,
             price: rawSignal.price,
-            tradeId: trade._id
+            tradeId: trade ? trade._id : null
         });
-
-        // 6. Queue for Asynchronous Zerodha Execution (BullMQ)
-        await addOrderToQueue({
-            symbol: futuresSymbol,
-            action: rawSignal.action.toUpperCase(),
-            quantity: tradeQuantity,
-            price: rawSignal.price
-        }, trade._id);
-
-        // 7. Start Cooldown for this symbol
-        await riskManager.startCooldown(futuresSymbol);
 
         // 8. Log success
         logSignal(signalDoc, 'accepted');
@@ -96,7 +103,8 @@ const postSignal = async (req, res) => {
         res.status(202).json({
             status: "accepted",
             signalId: signalDoc._id,
-            tradeId: trade._id
+            tradeId: trade ? trade._id : null,
+            positionTaken: config.takePositions
         });
 
     } catch (error) {

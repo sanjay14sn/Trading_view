@@ -4,6 +4,7 @@ const config = {
     env: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT, 10) || 3000,
     webhookSecret: process.env.WEBHOOK_SECRET,
+    takePositions: process.env.TAKE_POSITIONS !== undefined ? process.env.TAKE_POSITIONS === 'true' : false,
 
     mongodb: {
         uri: process.env.MONGO_URI || 'mongodb://localhost:27017/tradingview_prod'

@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -8,9 +7,9 @@ class ApiService {
 
   ApiService({String? baseUrl})
       : baseUrl = baseUrl ??
-            (!kIsWeb && Platform.isAndroid
-                ? 'http://10.0.2.2:3001'
-                : 'http://localhost:3001');
+            dotenv.env['API_BASE_URL'] ??
+            dotenv.env['SERVER_URL'] ??
+            'http://13.205.189.169:3010';
 
   void updateBaseUrl(String url) {
     if (url.endsWith('/')) {
@@ -37,10 +36,8 @@ class ApiService {
         final data = jsonDecode(response.body);
         return data['status'] == 'OK';
       }
-      print('ApiService health check failed with status: ${response.statusCode}');
       return false;
-    } catch (e) {
-      print('ApiService Health Check Error ($baseUrl/health): $e');
+    } catch (_) {
       return false;
     }
   }

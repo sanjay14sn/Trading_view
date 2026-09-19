@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
 import '../services/notification_service.dart';
@@ -41,8 +42,10 @@ class TradingProvider extends ChangeNotifier {
   int get activePositions => _dashboardData?['activePositions'] ?? 0;
 
   TradingProvider() {
-    // Default URL preference order
-    _serverUrl = 'https://grained-nontelegraphical-gwen.ngrok-free.dev';
+    // Default URL from dotenv or fallback
+    _serverUrl = dotenv.env['SERVER_URL'] ??
+        dotenv.env['API_BASE_URL'] ??
+        'http://13.205.189.169:3010';
     _apiService = ApiService(baseUrl: _serverUrl);
     _socketService = SocketService();
 
@@ -87,7 +90,7 @@ class TradingProvider extends ChangeNotifier {
     await refreshAll();
 
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       refreshAll(silent: true);
     });
   }
@@ -105,6 +108,7 @@ class TradingProvider extends ChangeNotifier {
 
   Future<void> _autoDiscoverServer() async {
     final candidateUrls = [
+      'http://13.205.189.169:3010',
       'https://grained-nontelegraphical-gwen.ngrok-free.dev',
       'http://10.255.198.129:3001',
       (!kIsWeb && Platform.isAndroid) ? 'http://10.0.2.2:3001' : 'http://localhost:3001',
@@ -131,12 +135,12 @@ class TradingProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    _isServerOnline = await _apiService.checkHealth();
+    _isServerOnline = await _apiService.checkHealth() || _socketService.isConnected;
 
-    // If offline, attempt auto-discovery
-    if (!_isServerOnline) {
+    // Only attempt candidate auto-discovery on explicit non-silent refresh/startup
+    if (!_isServerOnline && !silent) {
       await _autoDiscoverServer();
-      _isServerOnline = await _apiService.checkHealth();
+      _isServerOnline = await _apiService.checkHealth() || _socketService.isConnected;
     }
 
     if (_isServerOnline) {
