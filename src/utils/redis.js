@@ -8,10 +8,23 @@ const createMockRedis = () => {
     const store = new Map();
     const mock = {
         get: async (key) => store.get(key),
-        set: async (key, val, mode, expiry) => {
+        set: async (key, val, ...args) => {
+            // Parse variadic options: NX, EX <n>, PX <n>
+            const upper = args.map(a => typeof a === 'string' ? a.toUpperCase() : a);
+            const nxIndex = upper.indexOf('NX');
+            const exIndex = upper.indexOf('EX');
+            const pxIndex = upper.indexOf('PX');
+
+            if (nxIndex !== -1 && store.has(key)) {
+                return null; // NX: return null if key already exists
+            }
             store.set(key, val);
-            if (mode === 'PX' || mode === 'EX') {
-                setTimeout(() => store.delete(key), mode === 'PX' ? expiry : expiry * 1000);
+            if (exIndex !== -1) {
+                const ttl = upper[exIndex + 1];
+                setTimeout(() => store.delete(key), ttl * 1000);
+            } else if (pxIndex !== -1) {
+                const ttl = upper[pxIndex + 1];
+                setTimeout(() => store.delete(key), ttl);
             }
             return 'OK';
         },
