@@ -114,7 +114,7 @@ class SignalsScreen extends StatelessWidget {
                   Text('Action: $action'),
                   Text('Price: ₹$price'),
                   Text('Status: $status'),
-                  Text('Received At: $receivedAtStr'),
+                  Text('Received At: ${receivedAtVal ?? formattedTime}'),
                   if (signal['rejectionReason'] != null)
                     Text('Rejection Reason: ${signal['rejectionReason']}', style: const TextStyle(color: AppTheme.sellRed)),
                   const SizedBox(height: 20),
