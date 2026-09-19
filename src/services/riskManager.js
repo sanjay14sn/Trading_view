@@ -27,8 +27,11 @@ const riskManager = {
 
 
         // 3. Check Daily Trade Count
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
         const dailyCount = isDbConnected()
-            ? await Trade.countDocuments({ entryTime: { $gte: new Date().setHours(0, 0, 0, 0) } })
+            ? await Trade.countDocuments({ entryTime: { $gte: startOfDay } })
             : mockStore.getTodayTrades().length;
 
         if (dailyCount >= limits.maxTradesPerDay) {
