@@ -12,12 +12,19 @@ class SocketService {
   void connect(String serverUrl) {
     disconnect();
 
+    String cleanUrl = serverUrl.trim();
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    }
+
     try {
       socket = io.io(
-        serverUrl,
+        cleanUrl,
         io.OptionBuilder()
             .setTransports(['polling', 'websocket'])
+            .setPath('/socket.io/')
             .disableAutoConnect()
+            .setReconnectionAttempts(3)
             .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
             .build(),
       );
