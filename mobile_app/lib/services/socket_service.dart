@@ -21,12 +21,9 @@ class SocketService {
       socket = io.io(
         cleanUrl,
         io.OptionBuilder()
-            .setTransports(['polling', 'websocket'])
-            .setPath('/socket.io/')
-            .setTimeout(15000)
-            .disableAutoConnect()
-            .setReconnectionAttempts(3)
-            .setExtraHeaders({'ngrok-skip-browser-warning': 'true'})
+            .setTransports(['websocket', 'polling'])
+            .enableAutoConnect()
+            .enableReconnection()
             .build(),
       );
 
