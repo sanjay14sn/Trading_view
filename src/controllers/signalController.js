@@ -21,21 +21,34 @@ const isDbConnected = () => mongoose.connection.readyState === 1;
  */
 const postSignal = async (req, res) => {
     try {
-        const rawSignal = req.body;
-        console.log(`🎯 Received signal: ${rawSignal.symbol} ${rawSignal.action}`);
+        const rawSignal = req.body || {};
+        const symbolInput = rawSignal.symbol ? String(rawSignal.symbol) : 'NIFTY';
+        const actionInput = rawSignal.action ? String(rawSignal.action).toUpperCase() : 'BUY';
+        const priceInput = rawSignal.price ? parseFloat(rawSignal.price) : 0;
+
+        console.log(`🎯 Received signal: ${symbolInput} ${actionInput}`);
 
         // 1. Persist (DB or Mock)
-        const futuresSymbol = instrumentMapper.getFuturesSymbol(rawSignal.symbol);
+        const futuresSymbol = instrumentMapper.getFuturesSymbol(symbolInput);
         const initialData = {
-            symbol: futuresSymbol, rawSymbol: rawSignal.symbol, action: rawSignal.action.toUpperCase(),
-            price: rawSignal.price, metadata: rawSignal, receivedAt: new Date(), status: 'pending'
+            symbol: futuresSymbol,
+            rawSymbol: symbolInput,
+            action: actionInput,
+            price: priceInput,
+            metadata: rawSignal,
+            receivedAt: new Date(),
+            status: 'pending'
         };
 
         let signalDoc;
         if (isDbConnected()) {
             signalDoc = await Signal.create(initialData);
         } else {
-            signalDoc = { ...initialData, _id: `mock_sig_${Date.now()}`, updateOne: async (u) => Object.assign(signalDoc, u) };
+            signalDoc = {
+                ...initialData,
+                _id: `mock_sig_${Date.now()}`,
+                updateOne: async (u) => Object.assign(signalDoc, u)
+            };
             mockStore.signals.push(signalDoc);
         }
 
