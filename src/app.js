@@ -9,9 +9,16 @@ const { apiLimiter } = require('./middlewares/rateLimitMiddleware');
 
 const app = express();
 
+// ✅ Trust reverse proxy (nginx) — required for rate-limit & correct IP detection
+app.set('trust proxy', 1);
+
 // 🛡️ Security Middleware
 app.use(helmet());
 app.use(cors());
+
+// ✅ Body Parsing — MUST come before routes so req.body is populated
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // 🏥 Health Check (Exempt from rate limiting)
 app.get('/health', (req, res) => {
