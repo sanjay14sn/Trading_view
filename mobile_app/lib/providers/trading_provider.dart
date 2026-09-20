@@ -208,6 +208,26 @@ class TradingProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
+  Future<bool> deleteTrade(String tradeId) async {
+    final success = await _apiService.deleteTrade(tradeId);
+    if (success) {
+      _trades.removeWhere((t) => t['_id']?.toString() == tradeId.toString());
+      _signals.removeWhere((s) => s['_id']?.toString() == tradeId.toString() || s['tradeId']?.toString() == tradeId.toString());
+      await refreshAll(silent: true);
+    }
+    return success;
+  }
+
+  Future<bool> clearAllTrades() async {
+    final success = await _apiService.clearAllTrades();
+    if (success) {
+      _trades.clear();
+      _signals.clear();
+      await refreshAll(silent: true);
+    }
+    return success;
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

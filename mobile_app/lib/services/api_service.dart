@@ -110,4 +110,36 @@ class ApiService {
     }
     return null;
   }
+
+  // Delete Individual Trade
+  Future<bool> deleteTrade(String tradeId) async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/trades/$tradeId'),
+            headers: _defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('ApiService Error (deleteTrade): $e');
+    }
+    return false;
+  }
+
+  // Clear All Trade History & Reports
+  Future<bool> clearAllTrades() async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/trades'),
+            headers: _defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('ApiService Error (clearAllTrades): $e');
+    }
+    return false;
+  }
 }

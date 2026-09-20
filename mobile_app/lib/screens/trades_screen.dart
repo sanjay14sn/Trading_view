@@ -34,6 +34,13 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Trades & Positions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded, color: AppTheme.sellRed),
+            tooltip: 'Clear History',
+            onPressed: () => _confirmClearAllTrades(context, provider),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTheme.primary,
@@ -146,6 +153,15 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
               ),
               const SizedBox(width: 6),
               _buildStatusTag(status),
+              const SizedBox(width: 4),
+              if (trade['_id'] != null)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.grey),
+                  tooltip: 'Delete Trade Record',
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(4),
+                  onPressed: () => _confirmDeleteTrade(context, provider, trade['_id'].toString(), symbol),
+                ),
             ],
           ),
           const Divider(height: 24, color: AppTheme.border),
@@ -250,5 +266,61 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteTrade(BuildContext context, TradingProvider provider, String tradeId, String symbol) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text('Delete $symbol Trade?'),
+        content: const Text('This will permanently delete this trade record from database history.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await provider.deleteTrade(tradeId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trade deleted successfully.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmClearAllTrades(BuildContext context, TradingProvider provider) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Clear All Trades?'),
+        content: const Text('This will permanently delete all trade history and signals. This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await provider.clearAllTrades();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All trades cleared successfully.')),
+        );
+      }
+    }
   }
 }

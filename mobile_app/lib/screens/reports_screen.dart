@@ -4,8 +4,17 @@ import 'package:intl/intl.dart';
 import '../providers/trading_provider.dart';
 import '../theme/app_theme.dart';
 
-class ReportsScreen extends StatelessWidget {
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
+
+  @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  String _selectedOutcome = 'ALL'; // ALL, PROFIT, LOSS, OPEN
+  String _selectedSymbol = 'ALL'; // ALL or specific symbol
+  String _selectedDateRange = 'ALL'; // ALL, TODAY, THIS_WEEK
 
   static DateTime? _parseDateTime(dynamic val) {
     if (val == null) return null;
@@ -33,7 +42,6 @@ class ReportsScreen extends StatelessWidget {
 
   /// Pairs BUY → SELL signals per symbol and calculates point difference
   List<Map<String, dynamic>> _buildTradeReports(List<dynamic> signals) {
-    // Group by symbol
     final Map<String, List<Map<String, dynamic>>> bySymbol = {};
     for (final s in signals) {
       final sym = s['symbol'] ?? s['rawSymbol'] ?? 'UNKNOWN';
@@ -43,7 +51,6 @@ class ReportsScreen extends StatelessWidget {
     final List<Map<String, dynamic>> reports = [];
 
     bySymbol.forEach((symbol, symSignals) {
-      // Sort oldest → newest
       symSignals.sort((a, b) {
         final aTime = _parseDateTime(a['receivedAt'] ?? a['createdAt'] ?? a['timestamp']);
         final bTime = _parseDateTime(b['receivedAt'] ?? b['createdAt'] ?? b['timestamp']);
@@ -51,16 +58,16 @@ class ReportsScreen extends StatelessWidget {
         return aTime.compareTo(bTime);
       });
 
-      // Pair: first BUY → next SELL (or first SELL → next BUY)
       Map<String, dynamic>? openEntry;
       for (final sig in symSignals) {
         final action = (sig['action'] ?? '').toString().toUpperCase();
         final price = (sig['price'] ?? 0).toDouble();
         final receivedAt = sig['receivedAt'] ?? sig['createdAt'] ?? sig['timestamp'];
+        final id = sig['_id'] ?? sig['id'];
 
         if (openEntry == null) {
-          // Start a new open entry
           openEntry = {
+            'id': id,
             'symbol': symbol,
             'entryAction': action,
             'entryPrice': price,
@@ -68,7 +75,6 @@ class ReportsScreen extends StatelessWidget {
           };
         } else {
           final entryAction = openEntry['entryAction'] as String;
-          // Close when opposite side comes
           if ((entryAction == 'BUY' && action == 'SELL') ||
               (entryAction == 'SELL' && action == 'BUY')) {
             final entryPrice = openEntry['entryPrice'] as double;
@@ -78,6 +84,7 @@ class ReportsScreen extends StatelessWidget {
                 : entryPrice - exitPrice;
 
             reports.add({
+              'id': openEntry['id'] ?? id,
               'symbol': symbol,
               'entryAction': entryAction,
               'exitAction': action,
@@ -87,10 +94,10 @@ class ReportsScreen extends StatelessWidget {
               'entryTime': openEntry['entryTime'],
               'exitTime': receivedAt,
             });
-            openEntry = null; // Reset for next pair
+            openEntry = null;
           } else {
-            // Same side came again — treat as new entry
             openEntry = {
+              'id': id,
               'symbol': symbol,
               'entryAction': action,
               'entryPrice': price,
@@ -100,9 +107,9 @@ class ReportsScreen extends StatelessWidget {
         }
       }
 
-      // If there's an open entry with no exit, show it as "Open"
       if (openEntry != null) {
         reports.add({
+          'id': openEntry['id'],
           'symbol': symbol,
           'entryAction': openEntry['entryAction'],
           'exitAction': 'OPEN',
@@ -115,7 +122,6 @@ class ReportsScreen extends StatelessWidget {
       }
     });
 
-    // Sort reports by entryTime descending
     reports.sort((a, b) {
       final aTime = _parseDateTime(a['entryTime']);
       final bTime = _parseDateTime(b['entryTime']);
@@ -126,13 +132,51 @@ class ReportsScreen extends StatelessWidget {
     return reports;
   }
 
+  List<Map<String, dynamic>> _filterReports(List<Map<String, dynamic>> rawReports) {
+    final now = DateTime.now();
+    return rawReports.where((r) {
+      // 1. Outcome Filter
+      if (_selectedOutcome == 'PROFIT' && (r['points'] == null || (r['points'] as double) <= 0)) {
+        return false;
+      }
+      if (_selectedOutcome == 'LOSS' && (r['points'] == null || (r['points'] as double) >= 0)) {
+        return false;
+      }
+      if (_selectedOutcome == 'OPEN' && r['exitAction'] != 'OPEN') {
+        return false;
+      }
+
+      // 2. Symbol Filter
+      if (_selectedSymbol != 'ALL' && r['symbol'] != _selectedSymbol) {
+        return false;
+      }
+
+      // 3. Date Filter
+      final entryDt = _parseDateTime(r['entryTime']);
+      if (_selectedDateRange == 'TODAY' && entryDt != null) {
+        if (entryDt.year != now.year || entryDt.month != now.month || entryDt.day != now.day) {
+          return false;
+        }
+      } else if (_selectedDateRange == 'THIS_WEEK' && entryDt != null) {
+        final diffDays = now.difference(entryDt).inDays;
+        if (diffDays > 7) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TradingProvider>(context);
-    final reports = _buildTradeReports(provider.signals);
+    final allReports = _buildTradeReports(provider.signals);
+    final filteredReports = _filterReports(allReports);
 
-    // Summary totals
-    final closedReports = reports.where((r) => r['points'] != null).toList();
+    // Dynamic symbols list
+    final availableSymbols = ['ALL', ...allReports.map((r) => r['symbol'] as String).toSet()];
+
+    // Summary totals based on filtered reports
+    final closedReports = filteredReports.where((r) => r['points'] != null).toList();
     final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
     final winners = closedReports.where((r) => (r['points'] as double) > 0).length;
     final losers = closedReports.where((r) => (r['points'] as double) < 0).length;
@@ -145,16 +189,25 @@ class ReportsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () => provider.fetchSignals(),
+            tooltip: 'Refresh Reports',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_rounded, color: AppTheme.sellRed),
+            tooltip: 'Clear All Reports',
+            onPressed: () => _confirmClearAll(context, provider),
           ),
         ],
       ),
       body: Column(
         children: [
+          // ── Filter Controls ───────────────────────────────────────
+          _buildFilterBar(availableSymbols),
+
           // ── Summary Banner ──────────────────────────────────────────
           if (closedReports.isNotEmpty)
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              padding: const EdgeInsets.all(18),
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: totalPoints >= 0
@@ -163,13 +216,13 @@ class ReportsScreen extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
                     color: (totalPoints >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444))
                         .withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -180,20 +233,20 @@ class ReportsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'TOTAL P&L (Points)',
+                          'FILTERED P&L (Points)',
                           style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.8,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           '${totalPoints >= 0 ? '+' : ''}${totalPoints.toStringAsFixed(1)} pts',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 28,
+                            fontSize: 24,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -204,11 +257,11 @@ class ReportsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _statBadge('${closedReports.length}', 'Trades'),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           _statBadge('$winners', '▲ Win', Colors.white.withValues(alpha: 0.25)),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           _statBadge('$losers', '▼ Loss', Colors.white.withValues(alpha: 0.15)),
                         ],
                       ),
@@ -220,15 +273,15 @@ class ReportsScreen extends StatelessWidget {
 
           // ── Trade List ──────────────────────────────────────────────
           Expanded(
-            child: reports.isEmpty
+            child: filteredReports.isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
                     onRefresh: () => provider.refreshAll(),
                     child: ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: reports.length,
+                      itemCount: filteredReports.length,
                       itemBuilder: (context, index) {
-                        return _buildReportCard(reports[index]);
+                        return _buildReportCard(context, provider, filteredReports[index]);
                       },
                     ),
                   ),
@@ -238,26 +291,113 @@ class ReportsScreen extends StatelessWidget {
     );
   }
 
-  Widget _statBadge(String value, String label, [Color? bg]) {
+  Widget _buildFilterBar(List<String> symbols) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg ?? Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       child: Column(
         children: [
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14)),
-          Text(label,
-              style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w600)),
+          // Filter Chips Row 1: Outcome Filter
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Icon(Icons.filter_list_rounded, size: 18, color: AppTheme.textSecondary),
+                const SizedBox(width: 8),
+                _filterChip('ALL', 'All Outcomes', _selectedOutcome == 'ALL', (v) {
+                  setState(() => _selectedOutcome = 'ALL');
+                }),
+                const SizedBox(width: 6),
+                _filterChip('PROFIT', 'Profit Only (Win)', _selectedOutcome == 'PROFIT', (v) {
+                  setState(() => _selectedOutcome = 'PROFIT');
+                }, bg: const Color(0xFFDCFCE7), fg: const Color(0xFF15803D)),
+                const SizedBox(width: 6),
+                _filterChip('LOSS', 'Loss Only', _selectedOutcome == 'LOSS', (v) {
+                  setState(() => _selectedOutcome = 'LOSS');
+                }, bg: const Color(0xFFFEE2E2), fg: const Color(0xFFB91C1C)),
+                const SizedBox(width: 6),
+                _filterChip('OPEN', 'Open Positions', _selectedOutcome == 'OPEN', (v) {
+                  setState(() => _selectedOutcome = 'OPEN');
+                }),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Filter Chips Row 2: Symbol & Date Filters
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Icon(Icons.schedule_rounded, size: 16, color: AppTheme.textSecondary),
+                const SizedBox(width: 6),
+                _filterChip('ALL_DATE', 'All Time', _selectedDateRange == 'ALL', (v) {
+                  setState(() => _selectedDateRange = 'ALL');
+                }),
+                const SizedBox(width: 4),
+                _filterChip('TODAY', 'Today', _selectedDateRange == 'TODAY', (v) {
+                  setState(() => _selectedDateRange = 'TODAY');
+                }),
+                const SizedBox(width: 4),
+                _filterChip('THIS_WEEK', 'This Week', _selectedDateRange == 'THIS_WEEK', (v) {
+                  setState(() => _selectedDateRange = 'THIS_WEEK');
+                }),
+                const SizedBox(width: 12),
+                const Icon(Icons.show_chart_rounded, size: 16, color: AppTheme.textSecondary),
+                const SizedBox(width: 6),
+                ...symbols.map((sym) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: _filterChip(sym, sym, _selectedSymbol == sym, (v) {
+                      setState(() => _selectedSymbol = sym);
+                    }),
+                  );
+                }),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildReportCard(Map<String, dynamic> report) {
+  Widget _filterChip(String id, String label, bool isSelected, Function(bool) onSelected, {Color? bg, Color? fg}) {
+    return FilterChip(
+      selected: isSelected,
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          color: isSelected ? (fg ?? Colors.white) : AppTheme.textSecondary,
+        ),
+      ),
+      selectedColor: bg ?? AppTheme.primary,
+      backgroundColor: Colors.grey.shade100,
+      checkmarkColor: fg ?? Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      visualDensity: VisualDensity.compact,
+      onSelected: onSelected,
+    );
+  }
+
+  Widget _statBadge(String value, String label, [Color? bg]) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg ?? Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 8, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
+    final reportId = report['id']?.toString();
     final symbol = report['symbol'] as String;
     final entryAction = report['entryAction'] as String;
     final exitAction = report['exitAction'] as String;
@@ -298,7 +438,7 @@ class ReportsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header: Symbol + Points Badge ──
+            // ── Header: Symbol + Points Badge + Delete Menu ──
             Row(
               children: [
                 Expanded(
@@ -316,33 +456,34 @@ class ReportsScreen extends StatelessWidget {
                   _chip('OPEN', const Color(0xFFF1F5F9), AppTheme.textSecondary)
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: isProfit
-                          ? const Color(0xFFDCFCE7)
-                          : const Color(0xFFFEE2E2),
+                      color: isProfit ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       '${isProfit ? '+' : ''}${points!.toStringAsFixed(1)} pts',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: isProfit
-                            ? const Color(0xFF15803D)
-                            : const Color(0xFFB91C1C),
+                        fontSize: 13,
+                        color: isProfit ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
                       ),
                     ),
+                  ),
+                if (reportId != null)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.grey),
+                    tooltip: 'Delete Report Record',
+                    onPressed: () => _confirmDeleteTrade(context, provider, reportId, symbol),
                   ),
               ],
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // ── BUY → SELL Flow ──
             Row(
               children: [
-                // Entry side
                 Expanded(
                   child: _priceBox(
                     label: entryAction,
@@ -352,8 +493,6 @@ class ReportsScreen extends StatelessWidget {
                     isEntry: true,
                   ),
                 ),
-
-                // Arrow
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Column(
@@ -365,13 +504,13 @@ class ReportsScreen extends StatelessWidget {
                             : isProfit
                                 ? AppTheme.buyGreen
                                 : AppTheme.sellRed,
-                        size: 22,
+                        size: 20,
                       ),
                       if (!isOpen && points != null)
                         Text(
                           '${isProfit ? '+' : ''}${points.toStringAsFixed(0)}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: isProfit ? AppTheme.buyGreen : AppTheme.sellRed,
                           ),
@@ -379,8 +518,6 @@ class ReportsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // Exit side
                 Expanded(
                   child: isOpen
                       ? _pendingBox()
@@ -417,29 +554,11 @@ class ReportsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: isEntry ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 12,
-              letterSpacing: 0.5,
-            ),
-          ),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11)),
           const SizedBox(height: 3),
-          Text(
-            '₹${price.toStringAsFixed(1)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              color: AppTheme.textPrimary,
-            ),
-          ),
+          Text('₹${price.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary)),
           if (time.isNotEmpty)
-            Text(
-              time,
-              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
-            ),
+            Text(time, style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary)),
         ],
       ),
     );
@@ -456,17 +575,9 @@ class ReportsScreen extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text('AWAITING',
-              style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11)),
+          Text('AWAITING', style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w700, fontSize: 10)),
           SizedBox(height: 3),
-          Text('Next Signal',
-              style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  color: AppTheme.textSecondary)),
+          Text('Next Signal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: AppTheme.textSecondary)),
         ],
       ),
     );
@@ -474,10 +585,9 @@ class ReportsScreen extends StatelessWidget {
 
   Widget _chip(String label, Color bg, Color fg) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
     );
   }
 
@@ -485,22 +595,19 @@ class ReportsScreen extends StatelessWidget {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: const [
-        SizedBox(height: 120),
+        SizedBox(height: 100),
         Center(
           child: Column(
             children: [
               Icon(Icons.bar_chart_rounded, size: 52, color: AppTheme.textSecondary),
               SizedBox(height: 12),
               Text(
-                'No trade pairs yet.',
-                style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15),
+                'No trade reports found.',
+                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w700, fontSize: 15),
               ),
               SizedBox(height: 6),
               Text(
-                'Reports appear when a BUY is followed by a SELL\n(or vice versa) on the same symbol.',
+                'Try adjusting your filter selection or clear history.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
               ),
@@ -509,5 +616,61 @@ class ReportsScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _confirmDeleteTrade(BuildContext context, TradingProvider provider, String tradeId, String symbol) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: Text('Delete $symbol Record?'),
+        content: const Text('This will permanently delete this trade report record from history.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await provider.deleteTrade(tradeId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trade record deleted successfully.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmClearAll(BuildContext context, TradingProvider provider) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('Clear All Trade Reports?'),
+        content: const Text('This will permanently delete all trades and report history. This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All History', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await provider.clearAllTrades();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All trade reports cleared successfully.')),
+        );
+      }
+    }
   }
 }

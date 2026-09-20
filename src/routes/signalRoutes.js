@@ -21,9 +21,11 @@ router.get('/signals', signalController.getSignals);
 // 📱 Push Notification Token Registration
 router.post('/api/push-token', signalController.registerPushToken);
 
-// 💼 Trade Management
+// 💼 Trade Management & Deletion
 router.get('/trades', tradeController.getTrades);
 router.get('/trades/:id', tradeController.getTradeById);
 router.post('/trades/:id/close', tradeController.closeTradeManual);
+router.delete('/trades/:id', tradeController.deleteTrade);
+router.delete('/trades', tradeController.clearAllTrades);
 
 module.exports = router;

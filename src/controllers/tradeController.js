@@ -71,6 +71,36 @@ const tradeController = {
 
             res.json({ status: 'exit_triggered', symbol: trade.symbol });
         } catch (error) { res.status(500).json({ error: error.message }); }
+    },
+
+    async deleteTrade(req, res) {
+        try {
+            const { id } = req.params;
+            if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
+                await Trade.findByIdAndDelete(id);
+            }
+            mockStore.trades = mockStore.trades.filter(t => String(t._id) !== String(id));
+            res.json({ status: 'success', message: 'Trade deleted successfully', id });
+        } catch (error) {
+            logError(`Failed to delete trade ${req.params.id}: ${error.message}`);
+            res.status(500).json({ error: error.message });
+        }
+    },
+
+    async clearAllTrades(req, res) {
+        try {
+            const Signal = require('../models/Signal');
+            if (isDbConnected()) {
+                await Trade.deleteMany({});
+                await Signal.deleteMany({});
+            }
+            mockStore.trades = [];
+            mockStore.signals = [];
+            res.json({ status: 'success', message: 'All trade reports cleared' });
+        } catch (error) {
+            logError(`Failed to clear trades: ${error.message}`);
+            res.status(500).json({ error: error.message });
+        }
     }
 };
 
