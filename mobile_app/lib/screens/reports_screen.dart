@@ -204,183 +204,133 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () => provider.refreshAll(),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            children: [
-              // ── Header Title Row ──────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: const Text(
+          'Trade Reports',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, size: 20, color: Color(0xFF334155)),
+            onPressed: () => provider.refreshAll(),
+          ),
+          IconButton(
+            icon: Icon(
+              _selectedCustomDate != null ? Icons.event_rounded : Icons.calendar_today_rounded,
+              size: 20,
+              color: _selectedCustomDate != null ? const Color(0xFF15803D) : const Color(0xFF334155),
+            ),
+            onPressed: () => _showDatePicker(context),
+          ),
+          const SizedBox(width: 4),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(50),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 14, right: 14, bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
                       children: [
+                        _segmentedTab('ALL', 'All'),
+                        _segmentedTab('PROFITS', 'Profits'),
+                        _segmentedTab('LOSSES', 'Losses'),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _symbolDropdown(availableSymbols),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => provider.refreshAll(),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          children: [
+            // ── Active Date Filter Badge Chip (if calendar date selected) ──
+            if (_selectedCustomDate != null) ...[
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF86EFAC)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.event_rounded, size: 13, color: Color(0xFF15803D)),
+                        const SizedBox(width: 5),
                         Text(
-                          'Trade Reports',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.5,
+                          'Date: ${DateFormat('dd MMM yyyy').format(_selectedCustomDate!)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF15803D),
                           ),
                         ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Analyze your trades and track performance',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 5),
+                        GestureDetector(
+                          onTap: () => setState(() => _selectedCustomDate = null),
+                          child: const Icon(Icons.cancel_rounded, size: 15, color: Color(0xFF15803D)),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Row(
-                    children: [
-                      _actionIconButton(Icons.refresh_rounded, () => provider.refreshAll()),
-                      const SizedBox(width: 8),
-                      _actionIconButton(
-                        Icons.calendar_today_rounded,
-                        () => _showDatePicker(context),
-                        isHighlighted: _selectedCustomDate != null,
-                      ),
-                    ],
-                  ),
                 ],
               ),
-
-              const SizedBox(height: 16),
-
-              // ── Filter Row: Segmented Control & Symbol Selector ──
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 44,
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          _segmentedTab('ALL', 'All'),
-                          _segmentedTab('PROFITS', 'Profits'),
-                          _segmentedTab('LOSSES', 'Losses'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  _symbolDropdown(availableSymbols),
-                ],
-              ),
-
-              // ── Active Date Filter Badge Chip (if calendar date selected) ──
-              if (_selectedCustomDate != null) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.event_rounded, size: 14, color: Color(0xFF1D61E7)),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Date: ${DateFormat('dd MMM yyyy').format(_selectedCustomDate!)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1D61E7),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          GestureDetector(
-                            onTap: () => setState(() => _selectedCustomDate = null),
-                            child: const Icon(Icons.cancel_rounded, size: 16, color: Color(0xFF1D61E7)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              const SizedBox(height: 18),
-
-              // ── Recent Trades Header & Sort Dropdown ──────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Trade Log (${filteredReports.length})',
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  _sortDropdown(),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── Trade Report Cards List ───────────────────────────
-              if (filteredReports.isEmpty)
-                _buildEmptyState()
-              else
-                ...filteredReports.map((report) => _buildTradeCard(context, provider, report)),
-
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
             ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _actionIconButton(IconData icon, VoidCallback onPressed, {bool isHighlighted = false}) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: isHighlighted ? const Color(0xFFDCFCE7) : Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: isHighlighted ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        icon: Icon(icon, size: 18, color: isHighlighted ? const Color(0xFF15803D) : const Color(0xFF334155)),
-        onPressed: onPressed,
+            // ── Recent Trades Header & Sort Dropdown ──────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Trade Log (${filteredReports.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                _sortDropdown(),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Trade Report Cards List ───────────────────────────
+            if (filteredReports.isEmpty)
+              _buildEmptyState()
+            else
+              ...filteredReports.map((report) => _buildTradeCard(context, provider, report)),
+
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
