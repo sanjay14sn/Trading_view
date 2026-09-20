@@ -76,10 +76,17 @@ const tradeController = {
     async deleteTrade(req, res) {
         try {
             const { id } = req.params;
+            const Signal = require('../models/Signal');
             if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
-                await Trade.findByIdAndDelete(id);
+                const tradeDoc = await Trade.findByIdAndDelete(id);
+                if (tradeDoc && tradeDoc.signalId) {
+                    await Signal.findByIdAndDelete(tradeDoc.signalId);
+                }
+                await Signal.deleteMany({ tradeId: id });
+                await Signal.findByIdAndDelete(id);
             }
             mockStore.trades = mockStore.trades.filter(t => String(t._id) !== String(id));
+            mockStore.signals = mockStore.signals.filter(s => String(s._id) !== String(id) && String(s.tradeId) !== String(id));
             res.json({ status: 'success', message: 'Trade deleted successfully', id });
         } catch (error) {
             logError(`Failed to delete trade ${req.params.id}: ${error.message}`);

@@ -177,4 +177,43 @@ const registerPushToken = async (req, res) => {
     }
 };
 
-module.exports = { postSignal, getDashboard, getSignals, registerPushToken, mockStore };
+/**
+ * Delete Individual Signal by ID
+ */
+const deleteSignal = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
+            const deleted = await Signal.findByIdAndDelete(id);
+            if (deleted && deleted.tradeId) {
+                await Trade.findByIdAndDelete(deleted.tradeId);
+            }
+        }
+        mockStore.signals = mockStore.signals.filter(s => String(s._id) !== String(id));
+        mockStore.trades = mockStore.trades.filter(t => String(t.signalId) !== String(id) && String(t._id) !== String(id));
+        res.json({ status: 'success', message: 'Signal deleted successfully', id });
+    } catch (error) {
+        logError(`Failed to delete signal ${req.params.id}: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Clear All Signals
+ */
+const clearAllSignals = async (req, res) => {
+    try {
+        if (isDbConnected()) {
+            await Signal.deleteMany({});
+            await Trade.deleteMany({});
+        }
+        mockStore.signals = [];
+        mockStore.trades = [];
+        res.json({ status: 'success', message: 'All signals and trade records cleared' });
+    } catch (error) {
+        logError(`Failed to clear signals: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { postSignal, getDashboard, getSignals, registerPushToken, deleteSignal, clearAllSignals, mockStore };

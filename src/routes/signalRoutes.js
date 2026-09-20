@@ -14,9 +14,11 @@ router.post('/tradingview-signal',
     signalController.postSignal
 );
 
-// 📊 Dashboard & History
+// 📊 Dashboard & History & Signal Deletion
 router.get('/dashboard', signalController.getDashboard);
 router.get('/signals', signalController.getSignals);
+router.delete('/signals/:id', signalController.deleteSignal);
+router.delete('/signals', signalController.clearAllSignals);
 
 // 📱 Push Notification Token Registration
 router.post('/api/push-token', signalController.registerPushToken);

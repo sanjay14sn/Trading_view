@@ -85,6 +85,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
             reports.add({
               'id': openEntry['id'] ?? id,
+              'entrySignalId': openEntry['id']?.toString(),
+              'exitSignalId': id?.toString(),
+              'tradeId': openEntry['tradeId']?.toString() ?? sig['tradeId']?.toString(),
               'symbol': symbol,
               'entryAction': entryAction,
               'exitAction': action,
@@ -98,6 +101,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           } else {
             openEntry = {
               'id': id,
+              'tradeId': sig['tradeId'],
               'symbol': symbol,
               'entryAction': action,
               'entryPrice': price,
@@ -110,6 +114,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       if (openEntry != null) {
         reports.add({
           'id': openEntry['id'],
+          'entrySignalId': openEntry['id']?.toString(),
+          'exitSignalId': null,
+          'tradeId': openEntry['tradeId']?.toString(),
           'symbol': symbol,
           'entryAction': openEntry['entryAction'],
           'exitAction': 'OPEN',
@@ -397,7 +404,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildReportCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
-    final reportId = report['id']?.toString();
     final symbol = report['symbol'] as String;
     final entryAction = report['entryAction'] as String;
     final exitAction = report['exitAction'] as String;
@@ -470,12 +476,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                     ),
                   ),
-                if (reportId != null)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.grey),
-                    tooltip: 'Delete Report Record',
-                    onPressed: () => _confirmDeleteTrade(context, provider, reportId, symbol),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.grey),
+                  tooltip: 'Delete Report Record',
+                  onPressed: () => _confirmDeleteTrade(context, provider, report),
+                ),
               ],
             ),
 
@@ -618,13 +623,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Future<void> _confirmDeleteTrade(BuildContext context, TradingProvider provider, String tradeId, String symbol) async {
+  Future<void> _confirmDeleteTrade(BuildContext context, TradingProvider provider, Map<String, dynamic> report) async {
+    final symbol = report['symbol'] as String? ?? 'Trade';
+    final entrySignalId = report['entrySignalId']?.toString() ?? report['id']?.toString();
+    final exitSignalId = report['exitSignalId']?.toString();
+    final tradeId = report['tradeId']?.toString();
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
         title: Text('Delete $symbol Record?'),
-        content: const Text('This will permanently delete this trade report record from history.'),
+        content: const Text('This will permanently delete this trade report pair from history.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -637,10 +647,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
 
     if (confirm == true) {
-      await provider.deleteTrade(tradeId);
+      await provider.deleteReportPair(
+        entrySignalId: entrySignalId,
+        exitSignalId: exitSignalId,
+        tradeId: tradeId,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Trade record deleted successfully.')),
+          const SnackBar(content: Text('Trade report record deleted successfully.')),
         );
       }
     }

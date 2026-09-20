@@ -213,19 +213,62 @@ class TradingProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (success) {
       _trades.removeWhere((t) => t['_id']?.toString() == tradeId.toString());
       _signals.removeWhere((s) => s['_id']?.toString() == tradeId.toString() || s['tradeId']?.toString() == tradeId.toString());
+      notifyListeners();
       await refreshAll(silent: true);
     }
     return success;
   }
 
-  Future<bool> clearAllTrades() async {
-    final success = await _apiService.clearAllTrades();
+  Future<bool> deleteSignal(String signalId) async {
+    final success = await _apiService.deleteSignal(signalId);
     if (success) {
-      _trades.clear();
-      _signals.clear();
+      _signals.removeWhere((s) => s['_id']?.toString() == signalId.toString());
+      _trades.removeWhere((t) => t['signalId']?.toString() == signalId.toString() || t['_id']?.toString() == signalId.toString());
+      notifyListeners();
       await refreshAll(silent: true);
     }
     return success;
+  }
+
+  Future<bool> deleteReportPair({String? entrySignalId, String? exitSignalId, String? tradeId}) async {
+    bool success = false;
+    if (entrySignalId != null && entrySignalId.isNotEmpty) {
+      final res = await _apiService.deleteSignal(entrySignalId);
+      if (res) success = true;
+    }
+    if (exitSignalId != null && exitSignalId.isNotEmpty) {
+      final res = await _apiService.deleteSignal(exitSignalId);
+      if (res) success = true;
+    }
+    if (tradeId != null && tradeId.isNotEmpty) {
+      final res = await _apiService.deleteTrade(tradeId);
+      if (res) success = true;
+    }
+
+    // Immediately purge locally from signals & trades lists
+    _signals.removeWhere((s) =>
+        s['_id']?.toString() == entrySignalId?.toString() ||
+        s['_id']?.toString() == exitSignalId?.toString() ||
+        s['_id']?.toString() == tradeId?.toString());
+
+    _trades.removeWhere((t) =>
+        t['_id']?.toString() == tradeId?.toString() ||
+        t['_id']?.toString() == entrySignalId?.toString() ||
+        t['signalId']?.toString() == entrySignalId?.toString());
+
+    notifyListeners();
+    await refreshAll(silent: true);
+    return success;
+  }
+
+  Future<bool> clearAllTrades() async {
+    final tSuccess = await _apiService.clearAllTrades();
+    final sSuccess = await _apiService.clearAllSignals();
+    _trades.clear();
+    _signals.clear();
+    notifyListeners();
+    await refreshAll(silent: true);
+    return tSuccess || sSuccess;
   }
 
   @override

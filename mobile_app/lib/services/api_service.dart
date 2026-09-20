@@ -127,7 +127,39 @@ class ApiService {
     return false;
   }
 
-  // Clear All Trade History & Reports
+  // Delete Individual Signal
+  Future<bool> deleteSignal(String signalId) async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/signals/$signalId'),
+            headers: _defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('ApiService Error (deleteSignal): $e');
+    }
+    return false;
+  }
+
+  // Clear All Signals
+  Future<bool> clearAllSignals() async {
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/signals'),
+            headers: _defaultHeaders,
+          )
+          .timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('ApiService Error (clearAllSignals): $e');
+    }
+    return false;
+  }
+
+  // Clear All Trades
   Future<bool> clearAllTrades() async {
     try {
       final response = await http
