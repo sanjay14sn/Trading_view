@@ -149,7 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return symbol == _pairFilter;
   }
 
-  Future<void> _selectCustomDate(BuildContext context) async {
+  Future<void> _selectCustomDate(BuildContext context, StateSetter setModalState) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _customDate ?? DateTime.now(),
@@ -173,7 +173,272 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _customDate = picked;
         _timePeriod = 'CUSTOM';
       });
+      setModalState(() {});
     }
+  }
+
+  void _openFilterBottomSheet(BuildContext context, List<String> availableSymbols) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag Handle Bar
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Modal Header & Reset Button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.tune_rounded, size: 20, color: Color(0xFF0F172A)),
+                          SizedBox(width: 8),
+                          Text(
+                            'Report Filters',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _timePeriod = 'DAILY';
+                            _customDate = null;
+                            _pairFilter = 'ALL';
+                          });
+                          setModalState(() {});
+                        },
+                        child: const Text(
+                          'Reset',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Section 1: Time Period
+                  const Text(
+                    'TIME PERIOD',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _modalTimeChip('DAILY', 'Daily (Today)', setModalState),
+                      _modalTimeChip('WEEKLY', 'Week (7 Days)', setModalState),
+                      _modalTimeChip('MONTHLY', 'Month (30 Days)', setModalState),
+                      _modalTimeChip('ALL', 'All Time', setModalState),
+                      _modalCustomDateChip(ctx, setModalState),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Section 2: Pairs & Currency
+                  const Text(
+                    'CURRENCY & PAIRS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _modalPairChip('ALL', 'All Pairs', setModalState),
+                      _modalPairChip('USD', 'USD / USDT Pairs', setModalState),
+                      ...availableSymbols.where((s) => s != 'ALL' && s != 'USD').map((sym) {
+                        return _modalPairChip(sym, sym, setModalState);
+                      }),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Apply Filters Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(modalContext),
+                      child: const Text(
+                        'Apply Filters',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: MediaQuery.of(modalContext).padding.bottom + 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _modalTimeChip(String period, String label, StateSetter setModalState) {
+    final isSelected = _timePeriod == period;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _timePeriod = period);
+        setModalState(() {});
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF334155),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modalCustomDateChip(BuildContext context, StateSetter setModalState) {
+    final isSelected = _timePeriod == 'CUSTOM';
+    return GestureDetector(
+      onTap: () => _selectCustomDate(context, setModalState),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_month_rounded,
+              size: 14,
+              color: isSelected ? const Color(0xFF15803D) : const Color(0xFF334155),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isSelected && _customDate != null
+                  ? DateFormat('dd MMM').format(_customDate!)
+                  : 'Custom Date',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? const Color(0xFF15803D) : const Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modalPairChip(String value, String label, StateSetter setModalState) {
+    final isSelected = _pairFilter == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _pairFilter = value);
+        setModalState(() {});
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (value == 'USD') ...[
+              const Icon(Icons.attach_money_rounded, size: 13, color: Color(0xFF15803D)),
+              const SizedBox(width: 2),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? const Color(0xFF15803D) : const Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -207,22 +472,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // 👤 Top User Profile Header Row
               _buildTopHeader(context, provider),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
-              // 🎛️ Report Filter Bar (Time Period & Currency/Pair Filter)
-              _buildFilterControls(context, availableSymbols),
+              // 📈 Performance Dashboard Card (With Bottom Sheet Filter Trigger)
+              _buildPerformanceCard(context, provider, filteredReports, availableSymbols),
 
-              const SizedBox(height: 14),
-
-              // 📈 Performance Dashboard Card (Calculated with dynamic filters)
-              _buildPerformanceCard(context, provider, filteredReports),
-
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // 📊 Quick Stats Grid
               _buildStatsGrid(context, provider),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // 🛡️ System & Storage Engine Card
               _buildSystemHealthCard(context, provider),
@@ -230,146 +490,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 16),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  // 🎛️ Report Filters: Time Period & Pair Selector
-  Widget _buildFilterControls(BuildContext context, List<String> availableSymbols) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 1. Time Period Filters Row
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _timeChip('DAILY', 'Daily (Today)'),
-              const SizedBox(width: 6),
-              _timeChip('WEEKLY', 'Week (7D)'),
-              const SizedBox(width: 6),
-              _timeChip('MONTHLY', 'Month (30D)'),
-              const SizedBox(width: 6),
-              _timeChip('ALL', 'All Time'),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => _selectCustomDate(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _timePeriod == 'CUSTOM' ? const Color(0xFFDCFCE7) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _timePeriod == 'CUSTOM' ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.calendar_month_rounded,
-                        size: 13,
-                        color: _timePeriod == 'CUSTOM' ? const Color(0xFF15803D) : const Color(0xFF475569),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _timePeriod == 'CUSTOM' && _customDate != null
-                            ? DateFormat('dd MMM').format(_customDate!)
-                            : 'Custom',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: _timePeriod == 'CUSTOM' ? const Color(0xFF15803D) : const Color(0xFF475569),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // 2. Pair / Currency Selector Bar
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _pairChip('ALL', 'All Pairs'),
-              const SizedBox(width: 6),
-              _pairChip('USD', 'USD / USDT Only'),
-              ...availableSymbols.where((s) => s != 'ALL' && s != 'USD').map((sym) {
-                return Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: _pairChip(sym, sym),
-                );
-              }),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _timeChip(String period, String label) {
-    final isSelected = _timePeriod == period;
-    return GestureDetector(
-      onTap: () => setState(() => _timePeriod = period),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF475569),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _pairChip(String value, String label) {
-    final isSelected = _pairFilter == value;
-    return GestureDetector(
-      onTap: () => setState(() => _pairFilter = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (value == 'USD') ...[
-              const Icon(Icons.attach_money_rounded, size: 12, color: Color(0xFF15803D)),
-              const SizedBox(width: 2),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? const Color(0xFF15803D) : const Color(0xFF475569),
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -530,11 +650,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📈 Trade Performance Dashboard Card (Calculated dynamically)
+  // 📈 Trade Performance Dashboard Card
   Widget _buildPerformanceCard(
     BuildContext context,
     TradingProvider provider,
     List<Map<String, dynamic>> reports,
+    List<String> availableSymbols,
   ) {
     final closedReports = reports.where((r) => r['points'] != null).toList();
     final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
@@ -548,8 +669,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isPositive = totalPoints >= 0;
 
     String periodBadge = 'Today';
-    if (_timePeriod == 'WEEKLY') periodBadge = 'Last 7 Days';
-    if (_timePeriod == 'MONTHLY') periodBadge = 'Last 30 Days';
+    if (_timePeriod == 'WEEKLY') periodBadge = 'Week (7D)';
+    if (_timePeriod == 'MONTHLY') periodBadge = 'Month (30D)';
     if (_timePeriod == 'ALL') periodBadge = 'All Time';
     if (_timePeriod == 'CUSTOM' && _customDate != null) {
       periodBadge = DateFormat('dd MMM').format(_customDate!);
@@ -588,7 +709,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header inside Card
+          // Header inside Card with Bottom Sheet Filter Trigger Chip
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -600,26 +721,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Text(
-                  '$periodBadge • $pairBadge',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF334155),
+
+              // Filter Trigger Chip (Opens Bottom Sheet)
+              GestureDetector(
+                onTap: () => _openFilterBottomSheet(context, availableSymbols),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.tune_rounded, size: 13, color: Color(0xFF0F172A)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$periodBadge • $pairBadge',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: Color(0xFF64748B)),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           // Big P&L readout & Sparkline Graph
           Row(
