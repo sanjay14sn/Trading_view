@@ -472,20 +472,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final tagBg = isBuyEntry ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
     final tagText = isBuyEntry ? const Color(0xFF15803D) : const Color(0xFFB91C1C);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return GestureDetector(
+      onTap: () => _showReportDetailsBottomSheet(context, provider, report),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
@@ -640,8 +642,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _metricColumn(
     String label,
@@ -754,5 +757,276 @@ class _ReportsScreenState extends State<ReportsScreen> {
         );
       }
     }
+  }
+
+  void _showReportDetailsBottomSheet(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
+    final symbol = (report['symbol'] ?? 'UNKNOWN').toString();
+    final entryAction = (report['entryAction'] ?? 'BUY').toString().toUpperCase();
+    final isBuyEntry = entryAction == 'BUY';
+    final points = report['points'] as double?;
+    final isClosed = points != null;
+    final isWin = isClosed && points > 0;
+    final isLoss = isClosed && points < 0;
+
+    final typeTag = isBuyEntry ? 'CALL' : 'PUT';
+    final tagBg = isBuyEntry ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
+    final tagText = isBuyEntry ? const Color(0xFF15803D) : const Color(0xFFB91C1C);
+
+    // BUY & SELL Details
+    final dynamic rawBuyPrice = isBuyEntry ? report['entryPrice'] : report['exitPrice'];
+    final dynamic rawBuyTime = isBuyEntry ? report['entryTime'] : report['exitTime'];
+    final buyPriceStr = rawBuyPrice != null ? NumberFormat('#,##0.0#').format(rawBuyPrice) : '--';
+    final buyTimeStr = _formatTime(rawBuyTime);
+
+    final dynamic rawSellPrice = isBuyEntry ? report['exitPrice'] : report['entryPrice'];
+    final dynamic rawSellTime = isBuyEntry ? report['exitTime'] : report['entryTime'];
+    final sellPriceStr = rawSellPrice != null ? NumberFormat('#,##0.0#').format(rawSellPrice) : '--';
+    final sellTimeStr = _formatTime(rawSellTime);
+
+    String statusLabel = 'OPEN';
+    Color statusBg = const Color(0xFFF1F5F9);
+    Color statusText = const Color(0xFF475569);
+    if (isClosed) {
+      if (isWin) {
+        statusBg = const Color(0xFFDCFCE7);
+        statusText = const Color(0xFF15803D);
+        statusLabel = 'WIN';
+      } else if (isLoss) {
+        statusBg = const Color(0xFFFEE2E2);
+        statusText = const Color(0xFFB91C1C);
+        statusLabel = 'LOSS';
+      } else {
+        statusBg = const Color(0xFFF1F5F9);
+        statusText = const Color(0xFF475569);
+        statusLabel = 'EVEN';
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag Indicator Bar
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Header: Symbol + CALL/PUT Tag + Status + Close Button
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tagBg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      typeTag,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        color: tagText,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      symbol,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: statusText,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Result Banner Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isWin
+                      ? const Color(0xFFECFDF5)
+                      : (isLoss ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isWin
+                        ? const Color(0xFFA7F3D0)
+                        : (isLoss ? const Color(0xFFFECDD3) : const Color(0xFFE2E8F0)),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'RESULT P&L (POINTS)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isWin
+                                ? const Color(0xFF047857)
+                                : (isLoss ? const Color(0xFFB91C1C) : const Color(0xFF475569)),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          points != null
+                              ? '${points >= 0 ? '+' : ''}${points.toStringAsFixed(1)} Pts'
+                              : 'POSITION OPEN',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: isWin
+                                ? const Color(0xFF047857)
+                                : (isLoss ? const Color(0xFFB91C1C) : const Color(0xFF0F172A)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Icon(
+                      isWin
+                          ? Icons.trending_up_rounded
+                          : (isLoss ? Icons.trending_down_rounded : Icons.hourglass_top_rounded),
+                      size: 32,
+                      color: isWin
+                          ? const Color(0xFF10B981)
+                          : (isLoss ? const Color(0xFFEF4444) : const Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Trade Signal Pair Details Grid Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _reportDetailRow('BUY Price & Time', '₹$buyPriceStr  •  ${buyTimeStr.isNotEmpty ? buyTimeStr : 'Pending'}', icon: Icons.arrow_circle_up_rounded, valColor: const Color(0xFF16A34A)),
+                    const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                    _reportDetailRow('SELL Price & Time', '₹$sellPriceStr  •  ${sellTimeStr.isNotEmpty ? sellTimeStr : 'Pending'}', icon: Icons.arrow_circle_down_rounded, valColor: const Color(0xFFDC2626)),
+                    const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                    _reportDetailRow('Initial Entry Action', isBuyEntry ? 'BUY First (CALL)' : 'SELL First (PUT)', icon: Icons.swap_horiz_rounded),
+                    const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                    _reportDetailRow('Entry Signal ID', (report['entrySignalId'] ?? report['id'] ?? 'N/A').toString(), icon: Icons.fingerprint_rounded, isId: true),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Delete Button
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFDC2626),
+                    side: const BorderSide(color: Color(0xFFFECDD3)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text('Delete Trade Pair Record', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    _confirmDeleteTrade(context, provider, report);
+                  },
+                ),
+              ),
+
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _reportDetailRow(String label, String value, {required IconData icon, Color? valColor, bool isId = false}) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF64748B)),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const Spacer(),
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: isId ? 11 : 12.5,
+              fontWeight: FontWeight.w700,
+              color: valColor ?? (isId ? const Color(0xFF475569) : const Color(0xFF0F172A)),
+              fontFamily: isId ? 'monospace' : null,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
   }
 }
