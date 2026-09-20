@@ -375,7 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
           ),
         ),
         child: Row(
@@ -417,7 +417,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
           ),
         ),
         child: Row(
@@ -694,12 +694,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           opacity: 0.20,
         ),
         border: Border.all(
-          color: isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-          width: 1.5,
+          color: const Color(0xFF334155),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626)).withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -782,7 +782,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 : const Color(0xFFDC2626).withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                              color: Colors.white.withValues(alpha: 0.15),
                             ),
                           ),
                           child: Row(
