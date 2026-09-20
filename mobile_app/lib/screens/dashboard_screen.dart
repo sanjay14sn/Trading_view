@@ -440,7 +440,7 @@ class DashboardScreen extends StatelessWidget {
             children: [
               _statGridCard(
                 icon: Icons.bar_chart_rounded,
-                iconColor: const Color(0xFF2563EB),
+                iconColor: const Color(0xFF16A34A),
                 value: '$totalTradesCount',
                 label: 'Total Trades',
                 bg: Colors.white,
@@ -525,7 +525,7 @@ class DashboardScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F7FF),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -537,12 +537,12 @@ class DashboardScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDBEAFE),
+                  color: const Color(0xFFDCFCE7),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.show_chart_rounded,
-                  color: Color(0xFF2563EB),
+                  color: Color(0xFF16A34A),
                   size: 20,
                 ),
               ),
@@ -575,7 +575,7 @@ class DashboardScreen extends StatelessWidget {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF2563EB),
+              color: Color(0xFF16A34A),
             ),
           ),
         ],

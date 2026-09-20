@@ -254,8 +254,8 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
       bg = const Color(0xFFFEE2E2);
       fg = const Color(0xFFB91C1C);
     } else if (status.contains('HIT') || status == 'CLOSED') {
-      bg = const Color(0xFFEFF6FF);
-      fg = const Color(0xFF1D4ED8);
+      bg = const Color(0xFFDCFCE7);
+      fg = const Color(0xFF15803D);
     }
 
     return Container(

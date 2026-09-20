@@ -7,21 +7,21 @@ class AppTheme {
   static const Color border = Color(0xFFEAEAEE);
   static const Color surfaceBorder = Color(0xFFE2E8F0);
 
-  static const Color primary = Color(0xFF2563EB); // Royal Blue
-  static const Color buyGreen = Color(0xFF10B981); // Emerald Green
-  static const Color sellRed = Color(0xFFEF4444); // Red
-  static const Color warningOrange = Color(0xFFF59E0B); // Amber
+  static const Color primary = Color(0xFF16A34A); // Emerald Green
+  static const Color buyGreen = Color(0xFF16A34A); // Emerald Green
+  static const Color sellRed = Color(0xFFDC2626); // Red
+  static const Color warningOrange = Color(0xFFD97706); // Amber
 
-  static const Color textPrimary = Color(0xFF1E2538); // Dark Charcoal
-  static const Color textSecondary = Color(0xFF8A94A6); // Slate Grey
+  static const Color textPrimary = Color(0xFF0F172A); // Dark Slate
+  static const Color textSecondary = Color(0xFF64748B); // Slate Grey
   static const Color textLight = Color(0xFF94A3B8);
 
   static const Color badgeGreenBg = Color(0xFFDCFCE7);
   static const Color badgeGreenText = Color(0xFF15803D);
   static const Color badgeRedBg = Color(0xFFFEE2E2);
   static const Color badgeRedText = Color(0xFFB91C1C);
-  static const Color badgeBlueBg = Color(0xFFEFF6FF);
-  static const Color badgeBlueText = Color(0xFF1D4ED8);
+  static const Color badgeBlueBg = Color(0xFFDCFCE7);
+  static const Color badgeBlueText = Color(0xFF15803D);
 
   static ThemeData get lightTheme {
     return ThemeData(
