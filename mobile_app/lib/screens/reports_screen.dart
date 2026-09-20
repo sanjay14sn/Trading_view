@@ -363,22 +363,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _actionIconButton(IconData icon, VoidCallback onPressed, {bool isHighlighted = false}) {
     return Container(
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
-        color: isHighlighted ? const Color(0xFFEFF6FF) : Colors.white,
+        color: isHighlighted ? const Color(0xFFDCFCE7) : Colors.white,
         shape: BoxShape.circle,
-        border: Border.all(color: isHighlighted ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0)),
+        border: Border.all(color: isHighlighted ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, size: 20, color: isHighlighted ? const Color(0xFF1D61E7) : const Color(0xFF334155)),
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 18, color: isHighlighted ? const Color(0xFF15803D) : const Color(0xFF334155)),
         onPressed: onPressed,
       ),
     );
@@ -391,14 +392,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         onTap: () => setState(() => _selectedOutcome = key),
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF1D61E7) : Colors.transparent,
+            color: isSelected ? const Color(0xFF0F172A) : Colors.transparent,
             borderRadius: BorderRadius.circular(18),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12.5,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
               color: isSelected ? Colors.white : const Color(0xFF64748B),
             ),
@@ -413,24 +414,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final activeValue = cleanSymbols.contains(_selectedSymbol) ? _selectedSymbol : 'ALL';
 
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 6,
+            blurRadius: 4,
           ),
         ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: activeValue,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 20),
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 18),
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
           onChanged: (val) {
             if (val != null) setState(() => _selectedSymbol = val);
           },
@@ -448,18 +449,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _sortDropdown() {
     return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _sortOrder,
-          icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF64748B), size: 16),
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+          icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF64748B), size: 15),
+          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
           onChanged: (val) {
             if (val != null) setState(() => _sortOrder = val);
           },
@@ -497,62 +498,66 @@ class _ReportsScreenState extends State<ReportsScreen> {
     // Primary Container Time (Time of initial entry)
     final primaryTimeStr = _formatTime(report['entryTime']);
 
-    // Status Badge colors
-    Color statusBg = const Color(0xFFFEF3C7);
-    Color statusText = const Color(0xFFD97706);
+    // Status Badge colors (Green / Red / Grey)
+    Color statusBg = const Color(0xFFF1F5F9);
+    Color statusText = const Color(0xFF475569);
     String statusLabel = 'OPEN';
     if (isClosed) {
       if (isWin) {
-        statusBg = const Color(0xFFDCFCE7);
-        statusText = const Color(0xFF15803D);
+        statusBg = const Color(0xFFDCFCE7); // Soft Green
+        statusText = const Color(0xFF15803D); // Dark Green
         statusLabel = 'WIN';
       } else if (isLoss) {
-        statusBg = const Color(0xFFFEE2E2);
-        statusText = const Color(0xFFB91C1C);
+        statusBg = const Color(0xFFFEE2E2); // Soft Red
+        statusText = const Color(0xFFB91C1C); // Dark Red
         statusLabel = 'LOSS';
       } else {
-        statusBg = const Color(0xFFF1F5F9);
+        statusBg = const Color(0xFFF1F5F9); // Soft Grey
         statusText = const Color(0xFF475569);
         statusLabel = 'EVEN';
       }
     }
 
+    // CALL/PUT Tag Colors (Green / Red)
+    final tagBg = isBuyEntry ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
+    final tagText = isBuyEntry ? const Color(0xFF15803D) : const Color(0xFFB91C1C);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
           children: [
             // Top Row: Avatar + Symbol + Action Tag (CALL / PUT) + Status Badge + Delete Menu
             Row(
               children: [
-                // Asset Icon
+                // Asset Icon (Green/Red)
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
-                    color: isBuyEntry ? const Color(0xFFEFF6FF) : const Color(0xFFF3E8FF),
+                    color: tagBg,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isBuyEntry ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                    color: isBuyEntry ? const Color(0xFF2563EB) : const Color(0xFF7E22CE),
-                    size: 20,
+                    isBuyEntry ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                    color: tagText,
+                    size: 16,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,7 +568,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             child: Text(
                               symbol,
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF0F172A),
                               ),
@@ -572,28 +577,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isBuyEntry ? const Color(0xFFDBEAFE) : const Color(0xFFF3E8FF),
-                              borderRadius: BorderRadius.circular(6),
+                              color: tagBg,
+                              borderRadius: BorderRadius.circular(5),
                             ),
                             child: Text(
                               isBuyEntry ? 'CALL' : 'PUT',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.w900,
-                                color: isBuyEntry ? const Color(0xFF1E40AF) : const Color(0xFF7E22CE),
-                                letterSpacing: 0.5,
+                                color: tagText,
+                                letterSpacing: 0.4,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         primaryTimeStr,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: Color(0xFF94A3B8),
                           fontWeight: FontWeight.w500,
                         ),
@@ -604,26 +609,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
                 // Status Badge Pill
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusBg,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     statusLabel,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w900,
                       color: statusText,
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
 
                 // Delete Action Menu
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert_rounded, size: 18, color: Color(0xFF94A3B8)),
                   onSelected: (val) {
                     if (val == 'delete') {
                       _confirmDeleteTrade(context, provider, report);
@@ -634,9 +640,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 18),
-                          SizedBox(width: 8),
-                          Text('Delete Trade Pair', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13)),
+                          Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 16),
+                          SizedBox(width: 6),
+                          Text('Delete Trade Pair', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -646,7 +652,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
 
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+              padding: EdgeInsets.symmetric(vertical: 8),
               child: Divider(height: 1, color: Color(0xFFF1F5F9)),
             ),
 
@@ -677,7 +683,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   CrossAxisAlignment.end,
                   valueColor: points != null
                       ? (points > 0 ? const Color(0xFF16A34A) : (points < 0 ? const Color(0xFFDC2626) : const Color(0xFF475569)))
-                      : const Color(0xFFD97706),
+                      : const Color(0xFF475569),
                 ),
               ],
             ),
@@ -701,25 +707,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
             color: labelColor ?? const Color(0xFF94A3B8),
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           value,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w800,
             color: valueColor ?? const Color(0xFF0F172A),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Text(
           timeText,
           style: const TextStyle(
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: FontWeight.w500,
             color: Color(0xFF94A3B8),
           ),
