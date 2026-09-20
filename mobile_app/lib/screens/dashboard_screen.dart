@@ -65,7 +65,15 @@ class DashboardScreen extends StatelessWidget {
               'symbol': symbol,
               'points': pointsDiff,
             });
-            openEntry = null;
+
+            // Automatic Reversal: Exit signal opens the next container!
+            openEntry = {
+              'id': id,
+              'symbol': symbol,
+              'entryAction': action,
+              'entryPrice': price,
+              'entryTime': receivedAt,
+            };
           } else {
             openEntry = {
               'id': id,

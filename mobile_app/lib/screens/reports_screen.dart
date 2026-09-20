@@ -34,7 +34,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return DateFormat('dd MMM, hh:mm a').format(dt);
   }
 
-  /// Pairs BUY → SELL signals per symbol and calculates point difference
+  /// Pairs BUY ↔ SELL signals per symbol in continuous reversal mode
+  /// (First signal BUY = CALL, First signal SELL = PUT)
   List<Map<String, dynamic>> _buildTradeReports(List<dynamic> signals) {
     final Map<String, List<Map<String, dynamic>>> bySymbol = {};
     for (final s in signals) {
@@ -78,6 +79,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ? exitPrice - entryPrice
                 : entryPrice - exitPrice;
 
+            // Close current position
             reports.add({
               'id': openEntry['id'] ?? id,
               'entrySignalId': openEntry['id']?.toString(),
@@ -85,6 +87,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               'tradeId': openEntry['tradeId']?.toString() ?? sig['tradeId']?.toString(),
               'symbol': symbol,
               'entryAction': entryAction,
+              'type': entryAction == 'BUY' ? 'CALL' : 'PUT',
               'exitAction': action,
               'entryPrice': entryPrice,
               'exitPrice': exitPrice,
@@ -92,7 +95,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
               'entryTime': openEntry['entryTime'],
               'exitTime': receivedAt,
             });
-            openEntry = null;
+
+            // Automatic Reversal: Exit signal opens the next container!
+            openEntry = {
+              'id': id,
+              'tradeId': sig['tradeId'],
+              'symbol': symbol,
+              'entryAction': action,
+              'entryPrice': price,
+              'entryTime': receivedAt,
+            };
           } else {
             openEntry = {
               'id': id,
@@ -107,13 +119,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
 
       if (openEntry != null) {
+        final entryAction = openEntry['entryAction'] as String;
         reports.add({
           'id': openEntry['id'],
           'entrySignalId': openEntry['id']?.toString(),
           'exitSignalId': null,
           'tradeId': openEntry['tradeId']?.toString(),
           'symbol': symbol,
-          'entryAction': openEntry['entryAction'],
+          'entryAction': entryAction,
+          'type': entryAction == 'BUY' ? 'CALL' : 'PUT',
           'exitAction': 'OPEN',
           'entryPrice': openEntry['entryPrice'],
           'exitPrice': null,
@@ -553,17 +567,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: isBuy ? const Color(0xFFDBEAFE) : const Color(0xFFFEE2E2),
+                              color: isBuy ? const Color(0xFFDBEAFE) : const Color(0xFFF3E8FF),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              entryAction,
+                              isBuy ? 'CALL' : 'PUT',
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: isBuy ? const Color(0xFF1E40AF) : const Color(0xFF991B1B),
+                                fontWeight: FontWeight.w900,
+                                color: isBuy ? const Color(0xFF1E40AF) : const Color(0xFF7E22CE),
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
