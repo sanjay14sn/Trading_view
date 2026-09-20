@@ -13,7 +13,7 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   String _selectedOutcome = 'ALL'; // ALL, PROFITS, LOSSES
   String _selectedSymbol = 'ALL'; // ALL or specific symbol
-  String _selectedDateRange = 'TODAY'; // TODAY, THIS_WEEK, THIS_MONTH, CUSTOM
+  DateTime? _selectedCustomDate; // Picked via top calendar button
   String _sortOrder = 'LATEST'; // LATEST, OLDEST, HIGHEST_PNL
 
   static DateTime? _parseDateTime(dynamic val) {
@@ -128,8 +128,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   List<Map<String, dynamic>> _filterAndSortReports(List<Map<String, dynamic>> rawReports) {
-    final now = DateTime.now();
-
     List<Map<String, dynamic>> filtered = rawReports.where((r) {
       // 1. Outcome Filter
       if (_selectedOutcome == 'PROFITS' && (r['points'] == null || (r['points'] as double) <= 0)) {
@@ -144,17 +142,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
         return false;
       }
 
-      // 3. Date Filter
-      final entryDt = _parseDateTime(r['entryTime']);
-      if (_selectedDateRange == 'TODAY' && entryDt != null) {
-        if (entryDt.year != now.year || entryDt.month != now.month || entryDt.day != now.day) {
+      // 3. Custom Date Filter from Calendar Button
+      if (_selectedCustomDate != null) {
+        final entryDt = _parseDateTime(r['entryTime']);
+        if (entryDt == null ||
+            entryDt.year != _selectedCustomDate!.year ||
+            entryDt.month != _selectedCustomDate!.month ||
+            entryDt.day != _selectedCustomDate!.day) {
           return false;
         }
-      } else if (_selectedDateRange == 'THIS_WEEK' && entryDt != null) {
-        final diffDays = now.difference(entryDt).inDays;
-        if (diffDays > 7) return false;
-      } else if (_selectedDateRange == 'THIS_MONTH' && entryDt != null) {
-        if (entryDt.year != now.year || entryDt.month != now.month) return false;
       }
 
       return true;
@@ -191,16 +187,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     // Dynamic symbols list
     final availableSymbols = ['ALL', ...allReports.map((r) => r['symbol'] as String).toSet()];
-
-    // Metrics calculation
-    final closedReports = filteredReports.where((r) => r['points'] != null).toList();
-    final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
-    final winners = closedReports.where((r) => (r['points'] as double) > 0).length;
-    final losers = closedReports.where((r) => (r['points'] as double) < 0).length;
-    final totalTradesCount = filteredReports.length;
-    final winRate = closedReports.isNotEmpty
-        ? ((winners / closedReports.length) * 100).toStringAsFixed(1)
-        : '0.0';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
@@ -253,7 +239,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     children: [
                       _actionIconButton(Icons.refresh_rounded, () => provider.refreshAll()),
                       const SizedBox(width: 8),
-                      _actionIconButton(Icons.calendar_today_rounded, () => _showDatePicker(context)),
+                      _actionIconButton(
+                        Icons.calendar_today_rounded,
+                        () => _showDatePicker(context),
+                        isHighlighted: _selectedCustomDate != null,
+                      ),
                     ],
                   ),
                 ],
@@ -261,7 +251,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
               const SizedBox(height: 16),
 
-              // ── Filter Row 1: Segmented Control & Symbol Selector ──
+              // ── Filter Row: Segmented Control & Symbol Selector ──
               Row(
                 children: [
                   Expanded(
@@ -293,38 +283,52 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ],
               ),
 
-              const SizedBox(height: 10),
-
-              // ── Filter Row 2: Date Filters ────────────────────────
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+              // ── Active Date Filter Badge Chip (if calendar date selected) ──
+              if (_selectedCustomDate != null) ...[
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    _datePill('TODAY', 'Today'),
-                    const SizedBox(width: 8),
-                    _datePill('THIS_WEEK', 'This Week'),
-                    const SizedBox(width: 8),
-                    _datePill('THIS_MONTH', 'This Month'),
-                    const SizedBox(width: 8),
-                    _datePill('CUSTOM', 'Custom 📅'),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.event_rounded, size: 14, color: Color(0xFF1D61E7)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Date: ${DateFormat('dd MMM yyyy').format(_selectedCustomDate!)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1D61E7),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => setState(() => _selectedCustomDate = null),
+                            child: const Icon(Icons.cancel_rounded, size: 16, color: Color(0xFF1D61E7)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
+              ],
 
-              const SizedBox(height: 16),
-
-              // ── Performance Analytics Card (Total P&L) ────────────
-              _buildPerformanceCard(totalPoints, totalTradesCount, winners, losers, winRate, availableSymbols),
-
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
 
               // ── Recent Trades Header & Sort Dropdown ──────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Recent Trades',
-                    style: TextStyle(
+                  Text(
+                    'Trade Log (${filteredReports.length})',
+                    style: const TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF0F172A),
@@ -350,13 +354,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _actionIconButton(IconData icon, VoidCallback onPressed) {
+  Widget _actionIconButton(IconData icon, VoidCallback onPressed, {bool isHighlighted = false}) {
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isHighlighted ? const Color(0xFFEFF6FF) : Colors.white,
         shape: BoxShape.circle,
+        border: Border.all(color: isHighlighted ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -366,7 +371,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, size: 20, color: const Color(0xFF334155)),
+        icon: Icon(icon, size: 20, color: isHighlighted ? const Color(0xFF1D61E7) : const Color(0xFF334155)),
         onPressed: onPressed,
       ),
     );
@@ -397,6 +402,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _symbolDropdown(List<String> symbols) {
+    final cleanSymbols = ['ALL', ...symbols.where((s) => s != 'ALL' && s.isNotEmpty).toSet()];
+    final activeValue = cleanSymbols.contains(_selectedSymbol) ? _selectedSymbol : 'ALL';
+
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -413,13 +421,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: _selectedSymbol,
+          value: activeValue,
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 20),
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
           onChanged: (val) {
             if (val != null) setState(() => _selectedSymbol = val);
           },
-          items: symbols.map((sym) {
+          items: cleanSymbols.map((sym) {
             final displayLabel = sym == 'ALL' ? 'All Pairs' : sym;
             return DropdownMenuItem<String>(
               value: sym,
@@ -431,292 +439,78 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _datePill(String key, String label) {
-    final isSelected = _selectedDateRange == key;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedDateRange = key),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1D61E7) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF1D61E7) : const Color(0xFFE2E8F0),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 4,
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF64748B),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPerformanceCard(
-      double totalPoints, int totalTrades, int wins, int losses, String winRate, List<String> symbols) {
-    final isPositive = totalPoints >= 0;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFEFFDF5), Color(0xFFF0FDF4), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF10B981).withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header inside Card
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Total P&L (Points)',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF047857),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      _selectedSymbol == 'ALL' ? 'All Pairs' : _selectedSymbol,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // Big P&L readout & Mini Sparkline Graph
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF047857),
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                                size: 12,
-                                color: const Color(0xFF15803D),
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                '${isPositive ? '+' : ''}12.4%',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF15803D),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'vs previous period',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Sparkline graph
-              SizedBox(
-                width: 110,
-                height: 50,
-                child: CustomPaint(
-                  painter: _SparklinePainter(),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // 4 Stat Grid
-          Row(
-            children: [
-              _statGridCard(
-                icon: Icons.bar_chart_rounded,
-                iconColor: const Color(0xFF2563EB),
-                value: '$totalTrades',
-                label: 'Total Trades',
-                bg: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              _statGridCard(
-                icon: Icons.keyboard_arrow_up_rounded,
-                iconColor: const Color(0xFF16A34A),
-                value: '$wins',
-                label: 'Wins',
-                bg: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              _statGridCard(
-                icon: Icons.keyboard_arrow_down_rounded,
-                iconColor: const Color(0xFFDC2626),
-                value: '$losses',
-                label: 'Losses',
-                bg: const Color(0xFFFEF2F2),
-              ),
-              const SizedBox(width: 8),
-              _statGridCard(
-                icon: Icons.percent_rounded,
-                iconColor: const Color(0xFF0F172A),
-                value: '$winRate%',
-                label: 'Win Rate',
-                bg: Colors.white,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statGridCard({
-    required IconData icon,
-    required Color iconColor,
-    required String value,
-    required String label,
-    required Color bg,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 20, color: iconColor),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _sortDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.swap_vert_rounded, size: 16, color: Color(0xFF64748B)),
-          const SizedBox(width: 4),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _sortOrder,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-              onChanged: (val) {
-                if (val != null) setState(() => _sortOrder = val);
-              },
-              items: const [
-                DropdownMenuItem(value: 'LATEST', child: Text('Latest First')),
-                DropdownMenuItem(value: 'OLDEST', child: Text('Oldest First')),
-                DropdownMenuItem(value: 'HIGHEST_PNL', child: Text('Highest P&L')),
-              ],
-            ),
-          ),
-        ],
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _sortOrder,
+          icon: const Icon(Icons.unfold_more_rounded, color: Color(0xFF64748B), size: 16),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+          onChanged: (val) {
+            if (val != null) setState(() => _sortOrder = val);
+          },
+          items: const [
+            DropdownMenuItem(value: 'LATEST', child: Text('Latest First')),
+            DropdownMenuItem(value: 'OLDEST', child: Text('Oldest First')),
+            DropdownMenuItem(value: 'HIGHEST_PNL', child: Text('Highest P&L')),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTradeCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
-    final symbol = report['symbol'] as String;
-    final entryAction = report['entryAction'] as String;
-    final exitAction = report['exitAction'] as String;
-    final entryPrice = report['entryPrice'] as double;
-    final exitPrice = report['exitPrice'] as double?;
-    final double? points = report['points'] as double?;
-    final isOpen = exitAction == 'OPEN';
-    final isWin = (points ?? 0) > 0;
-    final isLoss = (points ?? 0) < 0;
+    final symbol = (report['symbol'] ?? 'UNKNOWN').toString();
+    final entryAction = (report['entryAction'] ?? 'BUY').toString().toUpperCase();
+    final isBuy = entryAction == 'BUY';
+    final points = report['points'] as double?;
+    final isClosed = points != null;
+    final isWin = isClosed && points > 0;
+    final isLoss = isClosed && points < 0;
 
-    final String timeStr = _formatTime(report['entryTime']);
+    final entryPrice = report['entryPrice'] != null
+        ? NumberFormat('#,##0.0#').format(report['entryPrice'])
+        : '--';
+    final exitPrice = report['exitPrice'] != null
+        ? NumberFormat('#,##0.0#').format(report['exitPrice'])
+        : '--';
+
+    final entryTimeStr = _formatTime(report['entryTime']);
+    final exitTimeStr = isClosed ? _formatTime(report['exitTime']) : 'Open';
+
+    // Status Badge colors
+    Color statusBg = const Color(0xFFFEF3C7);
+    Color statusText = const Color(0xFFD97706);
+    String statusLabel = 'OPEN';
+    if (isClosed) {
+      if (isWin) {
+        statusBg = const Color(0xFFDCFCE7);
+        statusText = const Color(0xFF15803D);
+        statusLabel = 'WIN';
+      } else if (isLoss) {
+        statusBg = const Color(0xFFFEE2E2);
+        statusText = const Color(0xFFB91C1C);
+        statusLabel = 'LOSS';
+      } else {
+        statusBg = const Color(0xFFF1F5F9);
+        statusText = const Color(0xFF475569);
+        statusLabel = 'EVEN';
+      }
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -725,207 +519,201 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Card Header: Avatar + Symbol + BUY Tag + Chevron/Delete Menu
-          Row(
-            children: [
-              // Crypto / Asset Avatar Circle
-              _assetAvatar(symbol),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      symbol,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Top Row: Avatar + Symbol + Action Tag + Delete Menu
+            Row(
+              children: [
+                // Asset Icon
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: isBuy ? const Color(0xFFEFF6FF) : const Color(0xFFFEF2F2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isBuy ? Icons.currency_bitcoin_rounded : Icons.show_chart_rounded,
+                    color: isBuy ? const Color(0xFF2563EB) : const Color(0xFFDC2626),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              symbol,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isBuy ? const Color(0xFFDBEAFE) : const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              entryAction,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: isBuy ? const Color(0xFF1E40AF) : const Color(0xFF991B1B),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        entryTimeStr,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Status Badge Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: statusText,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      timeStr,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                  ),
+                ),
+
+                const SizedBox(width: 4),
+
+                // Delete Action Menu
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  onSelected: (val) {
+                    if (val == 'delete') {
+                      _confirmDeleteTrade(context, provider, report);
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                          SizedBox(width: 8),
+                          Text('Delete Trade Pair', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-
-              // Action Badge (BUY / SELL)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: entryAction == 'BUY' ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  entryAction,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    color: entryAction == 'BUY' ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 6),
-
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8), size: 22),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                onSelected: (val) {
-                  if (val == 'delete') {
-                    _confirmDeleteTrade(context, provider, report);
-                  }
-                },
-                itemBuilder: (ctx) => [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
-                        SizedBox(width: 8),
-                        Text('Delete Record', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          // 3-Column Metrics Row: Entry Price | Exit Price | P&L (Points) + Status Badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Entry Price
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Entry Price', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 3),
-                  Text('₹${NumberFormat('#,##0.0').format(entryPrice)}',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
-                ],
-              ),
-
-              // Exit Price
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Exit Price', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 3),
-                  Text(
-                    exitPrice != null ? '₹${NumberFormat('#,##0.0').format(exitPrice)}' : '-',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
-                  ),
-                ],
-              ),
-
-              // P&L (Points)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('P&L (Points)', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 3),
-                  Text(
-                    points != null ? '${points >= 0 ? '+' : ''}${points.toStringAsFixed(0)}' : '-',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: isOpen
-                          ? const Color(0xFF94A3B8)
-                          : isWin
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFDC2626),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Status Pill (WIN / LOSS / OPEN)
-              _statusBadge(isOpen, isWin, isLoss),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _assetAvatar(String symbol) {
-    bool isBtc = symbol.toUpperCase().contains('BTC');
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: isBtc ? const Color(0xFFF7931A) : const Color(0xFF1D61E7),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: isBtc
-          ? const Text('₿', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20))
-          : Text(
-              symbol.substring(0, 1).toUpperCase(),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+              ],
             ),
-    );
-  }
 
-  Widget _statusBadge(bool isOpen, bool isWin, bool isLoss) {
-    String text = 'OPEN';
-    Color bg = const Color(0xFFEFF6FF);
-    Color fg = const Color(0xFF2563EB);
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+            ),
 
-    if (!isOpen) {
-      if (isWin) {
-        text = 'WIN';
-        bg = const Color(0xFFDCFCE7);
-        fg = const Color(0xFF15803D);
-      } else {
-        text = 'LOSS';
-        bg = const Color(0xFFFEE2E2);
-        fg = const Color(0xFFB91C1C);
-      }
-    }
+            // Middle Row: Entry, Exit, P&L Points
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _metricColumn('Entry Price', entryPrice, CrossAxisAlignment.start),
+                _metricColumn('Exit Price', exitPrice, CrossAxisAlignment.center),
+                _metricColumn(
+                  'Result (Pts)',
+                  points != null
+                      ? '${points >= 0 ? '+' : ''}${points.toStringAsFixed(1)}'
+                      : 'Pending',
+                  CrossAxisAlignment.end,
+                  valueColor: points != null
+                      ? (points > 0 ? const Color(0xFF16A34A) : (points < 0 ? const Color(0xFFDC2626) : const Color(0xFF475569)))
+                      : const Color(0xFFD97706),
+                ),
+              ],
+            ),
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 12,
-          color: fg,
+            if (isClosed) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Exit: $exitTimeStr',
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 
+  Widget _metricColumn(String label, String value, CrossAxisAlignment alignment, {Color? valueColor}) {
+    return Column(
+      crossAxisAlignment: alignment,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: valueColor ?? const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildEmptyState() {
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       alignment: Alignment.center,
-      child: const Column(
-        children: [
-          Icon(Icons.bar_chart_rounded, size: 56, color: Color(0xFFCBD5E1)),
+      child: Column(
+        children: const [
+          Icon(Icons.query_stats_rounded, size: 54, color: Color(0xFFCBD5E1)),
           SizedBox(height: 12),
           Text(
-            'No recent trades found',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
+            'No Trade Reports Found',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
           ),
           SizedBox(height: 4),
           Text(
-            'Reports will populate as signals arrive.',
+            'Signals will automatically pair into reports once completed.',
             style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -935,12 +723,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
   void _showDatePicker(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedCustomDate ?? DateTime.now(),
       firstDate: DateTime(2024),
       lastDate: DateTime.now(),
     );
     if (picked != null) {
-      setState(() => _selectedDateRange = 'CUSTOM');
+      setState(() => _selectedCustomDate = picked);
     }
   }
 
@@ -1032,57 +820,4 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
     }
   }
-}
-
-/// CustomPainter to draw smooth green sparkline wave graph in Total P&L Card
-class _SparklinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path();
-    final paintLine = Paint()
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF10B981);
-
-    final points = [
-      Offset(0, size.height * 0.8),
-      Offset(size.width * 0.2, size.height * 0.65),
-      Offset(size.width * 0.4, size.height * 0.75),
-      Offset(size.width * 0.6, size.height * 0.35),
-      Offset(size.width * 0.8, size.height * 0.45),
-      Offset(size.width, size.height * 0.15),
-    ];
-
-    path.moveTo(points[0].dx, points[0].dy);
-    for (int i = 0; i < points.length - 1; i++) {
-      final p1 = points[i];
-      final p2 = points[i + 1];
-      final controlPoint1 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p1.dy);
-      final controlPoint2 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p2.dy);
-      path.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p2.dx, p2.dy);
-    }
-
-    // Fill Gradient under curve
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          const Color(0xFF10B981).withValues(alpha: 0.3),
-          const Color(0xFF10B981).withValues(alpha: 0.0),
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paintLine);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

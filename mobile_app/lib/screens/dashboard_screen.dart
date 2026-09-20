@@ -7,6 +7,84 @@ import '../theme/app_theme.dart';
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
+  static DateTime? _parseDateTime(dynamic val) {
+    if (val == null) return null;
+    if (val is DateTime) return val.toLocal();
+    if (val is int) return DateTime.fromMillisecondsSinceEpoch(val).toLocal();
+    try {
+      return DateTime.parse(val.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Pairs BUY → SELL signals to calculate reports & performance metrics
+  List<Map<String, dynamic>> _buildTradeReports(List<dynamic> signals) {
+    final Map<String, List<Map<String, dynamic>>> bySymbol = {};
+    for (final s in signals) {
+      final sym = s['symbol'] ?? s['rawSymbol'] ?? 'UNKNOWN';
+      bySymbol.putIfAbsent(sym, () => []).add(Map<String, dynamic>.from(s as Map));
+    }
+
+    final List<Map<String, dynamic>> reports = [];
+
+    bySymbol.forEach((symbol, symSignals) {
+      symSignals.sort((a, b) {
+        final aTime = _parseDateTime(a['receivedAt'] ?? a['createdAt'] ?? a['timestamp']);
+        final bTime = _parseDateTime(b['receivedAt'] ?? b['createdAt'] ?? b['timestamp']);
+        if (aTime == null || bTime == null) return 0;
+        return aTime.compareTo(bTime);
+      });
+
+      Map<String, dynamic>? openEntry;
+      for (final sig in symSignals) {
+        final action = (sig['action'] ?? '').toString().toUpperCase();
+        final price = (sig['price'] ?? 0).toDouble();
+        final receivedAt = sig['receivedAt'] ?? sig['createdAt'] ?? sig['timestamp'];
+        final id = sig['_id'] ?? sig['id'];
+
+        if (openEntry == null) {
+          openEntry = {
+            'id': id,
+            'symbol': symbol,
+            'entryAction': action,
+            'entryPrice': price,
+            'entryTime': receivedAt,
+          };
+        } else {
+          final entryAction = openEntry['entryAction'] as String;
+          if ((entryAction == 'BUY' && action == 'SELL') ||
+              (entryAction == 'SELL' && action == 'BUY')) {
+            final entryPrice = openEntry['entryPrice'] as double;
+            final exitPrice = price;
+            final double pointsDiff = entryAction == 'BUY'
+                ? exitPrice - entryPrice
+                : entryPrice - exitPrice;
+
+            reports.add({
+              'symbol': symbol,
+              'points': pointsDiff,
+            });
+            openEntry = null;
+          } else {
+            openEntry = {
+              'id': id,
+              'symbol': symbol,
+              'entryAction': action,
+              'entryPrice': price,
+              'entryTime': receivedAt,
+            };
+          }
+        }
+      }
+      if (openEntry != null) {
+        reports.add({'symbol': symbol, 'points': null});
+      }
+    });
+
+    return reports;
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TradingProvider>(context);
@@ -25,10 +103,10 @@ class DashboardScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // 💰 Today's Realized P&L Card with smooth wave chart
-              _buildPnlCard(context, provider),
+              // 📈 Performance Dashboard Card (Moved from Trade Reports page)
+              _buildPerformanceCard(context, provider),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // 📊 Quick Stats Grid (Total Signals)
               _buildStatsGrid(context, provider),
@@ -44,7 +122,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // 👤 Top Header Row (Protected against overflow)
+  // 👤 Top Header Row
   Widget _buildTopHeader(BuildContext context, TradingProvider provider) {
     return Row(
       children: [
@@ -199,112 +277,234 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // 💰 TODAY'S REALIZED P&L Card
-  Widget _buildPnlCard(BuildContext context, TradingProvider provider) {
-    final pnl = provider.dailyPnl;
-    final isPositive = pnl >= 0;
-    final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+  // 📈 Trade Performance Dashboard Card (Moved from Trade Reports page)
+  Widget _buildPerformanceCard(BuildContext context, TradingProvider provider) {
+    final reports = _buildTradeReports(provider.signals);
+    final closedReports = reports.where((r) => r['points'] != null).toList();
+    final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
+    final winners = closedReports.where((r) => (r['points'] as double) > 0).length;
+    final losers = closedReports.where((r) => (r['points'] as double) < 0).length;
+    final totalTradesCount = reports.length;
+    final winRate = closedReports.isNotEmpty
+        ? ((winners / closedReports.length) * 100).toStringAsFixed(1)
+        : '0.0';
+
+    final isPositive = totalPoints >= 0;
 
     return Container(
-      height: 165,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
+        gradient: LinearGradient(
+          colors: isPositive
+              ? [const Color(0xFFEFFDF5), const Color(0xFFF0FDF4), Colors.white]
+              : [const Color(0xFFFEF2F2), const Color(0xFFFFF1F1), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFECDD3),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: (isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.06),
             blurRadius: 16,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // Wave Chart Graphic in Background
-            Positioned(
-              right: 0,
-              bottom: 0,
-              top: 10,
-              width: 180,
-              child: CustomPaint(
-                painter: PnlWavePainter(isPositive: isPositive),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header inside Card
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total P&L (Points)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                ),
               ),
-            ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      provider.isSocketConnected ? 'WebSocket' : 'Polling',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
 
-            // Card Foreground Content
-            Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'TODAY\'S REALIZED P&L',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textSecondary,
-                          letterSpacing: 0.6,
-                        ),
+          const SizedBox(height: 10),
+
+          // Big P&L readout & Sparkline Graph
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                        letterSpacing: -1,
                       ),
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFE6F4EA),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_outward_rounded,
-                          color: AppTheme.buyGreen,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    formatter.format(pnl),
-                    style: TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      color: isPositive ? AppTheme.buyGreen : AppTheme.sellRed,
-                      letterSpacing: -0.5,
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 6),
+                    Row(
                       children: [
-                        const Icon(
-                          Icons.settings_outlined,
-                          size: 13,
-                          color: AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          provider.isSocketConnected ? 'WebSocket mode' : 'Polling mode',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                size: 12,
+                                color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${isPositive ? '+' : ''}Live',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Performance Analytics',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              // Sparkline graph
+              SizedBox(
+                width: 100,
+                height: 48,
+                child: CustomPaint(
+                  painter: _SparklinePainter(isPositive: isPositive),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // 4 Stat Grid
+          Row(
+            children: [
+              _statGridCard(
+                icon: Icons.bar_chart_rounded,
+                iconColor: const Color(0xFF2563EB),
+                value: '$totalTradesCount',
+                label: 'Total Trades',
+                bg: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.keyboard_arrow_up_rounded,
+                iconColor: const Color(0xFF16A34A),
+                value: '$winners',
+                label: 'Wins',
+                bg: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.keyboard_arrow_down_rounded,
+                iconColor: const Color(0xFFDC2626),
+                value: '$losers',
+                label: 'Losses',
+                bg: const Color(0xFFFEF2F2),
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.percent_rounded,
+                iconColor: const Color(0xFF0F172A),
+                value: '$winRate%',
+                label: 'Win Rate',
+                bg: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statGridCard({
+    required IconData icon,
+    required Color iconColor,
+    required String value,
+    required String label,
+    required Color bg,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -375,7 +575,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // 🛡️ System & Storage Engine Card (Protected against overflow)
+  // 🛡️ System & Storage Engine Card
   Widget _buildSystemHealthCard(BuildContext context, TradingProvider provider) {
     final riskStats = provider.dashboardData?['riskStats'] ?? {};
     final isDbMock = riskStats['isDbMock'] ?? true;
@@ -544,11 +744,10 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// 🎨 Custom Wave Painter for P&L Background Graphic
-class PnlWavePainter extends CustomPainter {
+/// CustomPainter for green/red sparkline wave line in performance card
+class _SparklinePainter extends CustomPainter {
   final bool isPositive;
-
-  PnlWavePainter({required this.isPositive});
+  _SparklinePainter({required this.isPositive});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -567,7 +766,6 @@ class PnlWavePainter extends CustomPainter {
       size.width, size.height * 0.15,
     );
 
-    // Gradient fill path
     final fillPath = Path.from(path);
     fillPath.lineTo(size.width, size.height);
     fillPath.lineTo(0, size.height);
@@ -588,7 +786,6 @@ class PnlWavePainter extends CustomPainter {
 
     canvas.drawPath(fillPath, fillPaint);
 
-    // Stroke path
     final strokePaint = Paint()
       ..color = color
       ..strokeWidth = 2.2
