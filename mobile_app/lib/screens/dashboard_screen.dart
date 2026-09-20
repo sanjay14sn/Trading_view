@@ -4,8 +4,17 @@ import 'package:intl/intl.dart';
 import '../providers/trading_provider.dart';
 import '../theme/app_theme.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  String _timePeriod = 'DAILY'; // DAILY, WEEKLY, MONTHLY, CUSTOM, ALL
+  DateTime? _customDate;
+  String _pairFilter = 'ALL'; // ALL, USD (USD/USDT pairs), or specific symbol
 
   static DateTime? _parseDateTime(dynamic val) {
     if (val == null) return null;
@@ -63,7 +72,12 @@ class DashboardScreen extends StatelessWidget {
 
             reports.add({
               'symbol': symbol,
+              'entryAction': entryAction,
+              'entryPrice': entryPrice,
+              'exitPrice': exitPrice,
               'points': pointsDiff,
+              'entryTime': openEntry['entryTime'],
+              'exitTime': receivedAt,
             });
 
             // Automatic Reversal: Exit signal opens the next container!
@@ -86,16 +100,100 @@ class DashboardScreen extends StatelessWidget {
         }
       }
       if (openEntry != null) {
-        reports.add({'symbol': symbol, 'points': null});
+        reports.add({
+          'symbol': symbol,
+          'entryAction': openEntry['entryAction'],
+          'entryPrice': openEntry['entryPrice'],
+          'exitPrice': null,
+          'points': null,
+          'entryTime': openEntry['entryTime'],
+          'exitTime': null,
+        });
       }
     });
 
     return reports;
   }
 
+  bool _matchesTimePeriod(dynamic entryTimeVal) {
+    if (_timePeriod == 'ALL') return true;
+    final entryDt = _parseDateTime(entryTimeVal);
+    if (entryDt == null) return true;
+
+    final now = DateTime.now();
+    if (_timePeriod == 'DAILY') {
+      return entryDt.year == now.year &&
+          entryDt.month == now.month &&
+          entryDt.day == now.day;
+    } else if (_timePeriod == 'WEEKLY') {
+      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      return entryDt.isAfter(sevenDaysAgo);
+    } else if (_timePeriod == 'MONTHLY') {
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+      return entryDt.isAfter(thirtyDaysAgo);
+    } else if (_timePeriod == 'CUSTOM') {
+      if (_customDate == null) return true;
+      return entryDt.year == _customDate!.year &&
+          entryDt.month == _customDate!.month &&
+          entryDt.day == _customDate!.day;
+    }
+    return true;
+  }
+
+  bool _matchesPairFilter(String symbol) {
+    if (_pairFilter == 'ALL') return true;
+    if (_pairFilter == 'USD') {
+      final symUpper = symbol.toUpperCase();
+      return symUpper.contains('USD') || symUpper.contains('USDT');
+    }
+    return symbol == _pairFilter;
+  }
+
+  Future<void> _selectCustomDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF16A34A),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF0F172A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _customDate = picked;
+        _timePeriod = 'CUSTOM';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TradingProvider>(context);
+    final allReports = _buildTradeReports(provider.signals);
+
+    // Apply Time Period & Pair Filters
+    final filteredReports = allReports.where((r) {
+      final timeOk = _matchesTimePeriod(r['entryTime']);
+      final pairOk = _matchesPairFilter(r['symbol'] as String);
+      return timeOk && pairOk;
+    }).toList();
+
+    // Extract available symbols for pair filter
+    final availableSymbols = [
+      'ALL',
+      'USD',
+      ...allReports.map((r) => r['symbol'] as String).toSet(),
+    ];
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -109,22 +207,169 @@ class DashboardScreen extends StatelessWidget {
               // 👤 Top User Profile Header Row
               _buildTopHeader(context, provider),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-              // 📈 Performance Dashboard Card (Moved from Trade Reports page)
-              _buildPerformanceCard(context, provider),
+              // 🎛️ Report Filter Bar (Time Period & Currency/Pair Filter)
+              _buildFilterControls(context, availableSymbols),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-              // 📊 Quick Stats Grid (Total Signals)
+              // 📈 Performance Dashboard Card (Calculated with dynamic filters)
+              _buildPerformanceCard(context, provider, filteredReports),
+
+              const SizedBox(height: 14),
+
+              // 📊 Quick Stats Grid
               _buildStatsGrid(context, provider),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               // 🛡️ System & Storage Engine Card
               _buildSystemHealthCard(context, provider),
+
+              const SizedBox(height: 16),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 🎛️ Report Filters: Time Period & Pair Selector
+  Widget _buildFilterControls(BuildContext context, List<String> availableSymbols) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Time Period Filters Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _timeChip('DAILY', 'Daily (Today)'),
+              const SizedBox(width: 6),
+              _timeChip('WEEKLY', 'Week (7D)'),
+              const SizedBox(width: 6),
+              _timeChip('MONTHLY', 'Month (30D)'),
+              const SizedBox(width: 6),
+              _timeChip('ALL', 'All Time'),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => _selectCustomDate(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _timePeriod == 'CUSTOM' ? const Color(0xFFDCFCE7) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _timePeriod == 'CUSTOM' ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_month_rounded,
+                        size: 13,
+                        color: _timePeriod == 'CUSTOM' ? const Color(0xFF15803D) : const Color(0xFF475569),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _timePeriod == 'CUSTOM' && _customDate != null
+                            ? DateFormat('dd MMM').format(_customDate!)
+                            : 'Custom',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _timePeriod == 'CUSTOM' ? const Color(0xFF15803D) : const Color(0xFF475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // 2. Pair / Currency Selector Bar
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _pairChip('ALL', 'All Pairs'),
+              const SizedBox(width: 6),
+              _pairChip('USD', 'USD / USDT Only'),
+              ...availableSymbols.where((s) => s != 'ALL' && s != 'USD').map((sym) {
+                return Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: _pairChip(sym, sym),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _timeChip(String period, String label) {
+    final isSelected = _timePeriod == period;
+    return GestureDetector(
+      onTap: () => setState(() => _timePeriod = period),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pairChip(String value, String label) {
+    final isSelected = _pairFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _pairFilter = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDCFCE7) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF16A34A) : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (value == 'USD') ...[
+              const Icon(Icons.attach_money_rounded, size: 12, color: Color(0xFF15803D)),
+              const SizedBox(width: 2),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? const Color(0xFF15803D) : const Color(0xFF475569),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -285,9 +530,12 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // 📈 Trade Performance Dashboard Card (Moved from Trade Reports page)
-  Widget _buildPerformanceCard(BuildContext context, TradingProvider provider) {
-    final reports = _buildTradeReports(provider.signals);
+  // 📈 Trade Performance Dashboard Card (Calculated dynamically)
+  Widget _buildPerformanceCard(
+    BuildContext context,
+    TradingProvider provider,
+    List<Map<String, dynamic>> reports,
+  ) {
     final closedReports = reports.where((r) => r['points'] != null).toList();
     final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
     final winners = closedReports.where((r) => (r['points'] as double) > 0).length;
@@ -299,8 +547,23 @@ class DashboardScreen extends StatelessWidget {
 
     final isPositive = totalPoints >= 0;
 
+    String periodBadge = 'Today';
+    if (_timePeriod == 'WEEKLY') periodBadge = 'Last 7 Days';
+    if (_timePeriod == 'MONTHLY') periodBadge = 'Last 30 Days';
+    if (_timePeriod == 'ALL') periodBadge = 'All Time';
+    if (_timePeriod == 'CUSTOM' && _customDate != null) {
+      periodBadge = DateFormat('dd MMM').format(_customDate!);
+    }
+
+    String pairBadge = 'All Pairs';
+    if (_pairFilter == 'USD') {
+      pairBadge = 'USD/USDT';
+    } else if (_pairFilter != 'ALL') {
+      pairBadge = _pairFilter;
+    }
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isPositive
@@ -338,34 +601,25 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      provider.isSocketConnected ? 'WebSocket' : 'Polling',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                    ),
-                  ],
+                child: Text(
+                  '$periodBadge • $pairBadge',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF334155),
+                  ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
 
           // Big P&L readout & Sparkline Graph
           Row(
@@ -378,17 +632,17 @@ class DashboardScreen extends StatelessWidget {
                     Text(
                       '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
                       style: TextStyle(
-                        fontSize: 32,
+                        fontSize: 30,
                         fontWeight: FontWeight.w900,
                         color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
                         letterSpacing: -1,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
                             borderRadius: BorderRadius.circular(8),
@@ -397,14 +651,14 @@ class DashboardScreen extends StatelessWidget {
                             children: [
                               Icon(
                                 isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                                size: 12,
+                                size: 11,
                                 color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
                               ),
                               const SizedBox(width: 2),
                               Text(
-                                '${isPositive ? '+' : ''}Live',
+                                '${isPositive ? '+' : ''}Live Report',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
                                 ),
@@ -414,8 +668,8 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         const Text(
-                          'Performance Analytics',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          'Performance Summary',
+                          style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -424,8 +678,8 @@ class DashboardScreen extends StatelessWidget {
               ),
               // Sparkline graph
               SizedBox(
-                width: 100,
-                height: 48,
+                width: 90,
+                height: 44,
                 child: CustomPaint(
                   painter: _SparklinePainter(isPositive: isPositive),
                 ),
@@ -433,7 +687,7 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // 4 Stat Grid
           Row(
@@ -442,7 +696,7 @@ class DashboardScreen extends StatelessWidget {
                 icon: Icons.bar_chart_rounded,
                 iconColor: const Color(0xFF16A34A),
                 value: '$totalTradesCount',
-                label: 'Total Trades',
+                label: 'Trades',
                 bg: Colors.white,
               ),
               const SizedBox(width: 8),
@@ -485,7 +739,7 @@ class DashboardScreen extends StatelessWidget {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
@@ -493,12 +747,12 @@ class DashboardScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 18, color: iconColor),
-            const SizedBox(height: 6),
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(height: 4),
             Text(
               value,
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
                 color: Color(0xFF0F172A),
               ),
@@ -507,7 +761,7 @@ class DashboardScreen extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: 9.5,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF64748B),
               ),
