@@ -1,12 +1,11 @@
-import 'dart:async';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
 import '../services/notification_service.dart';
+import '../services/push_service.dart';
 
-class TradingProvider extends ChangeNotifier {
+class TradingProvider extends ChangeNotifier with WidgetsBindingObserver {
   late ApiService _apiService;
   late SocketService _socketService;
 
@@ -49,8 +48,20 @@ class TradingProvider extends ChangeNotifier {
     _apiService = ApiService(baseUrl: _serverUrl);
     _socketService = SocketService();
 
+    WidgetsBinding.instance.addObserver(this);
     _setupSocketListeners();
     initConnection();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('⚡ Mobile app resumed from background/cold state. Re-synchronizing...');
+      refreshAll(silent: true);
+      if (PushService.deviceToken != null) {
+        PushService.registerTokenWithBackend(_serverUrl, PushService.deviceToken!);
+      }
+    }
   }
 
   Function(Map<String, dynamic> data)? onSignalAlertReceived;
@@ -196,6 +207,7 @@ class TradingProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoRefreshTimer?.cancel();
     _socketService.disconnect();
     super.dispose();

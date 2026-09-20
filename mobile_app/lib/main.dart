@@ -6,6 +6,7 @@ import 'theme/app_theme.dart';
 import 'screens/splash_screen.dart';
 
 import 'services/notification_service.dart';
+import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,13 @@ void main() async {
     debugPrint("Could not load .env file: $e");
   }
   await LocalNotificationService.init();
+
+  final serverUrl = dotenv.env['SERVER_URL'] ??
+      dotenv.env['API_BASE_URL'] ??
+      'https://apitrading.iqsync.in';
+
+  await PushService.init(serverUrl);
+
   runApp(const TradingViewAlgoApp());
 }
 

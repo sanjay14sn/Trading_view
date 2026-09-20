@@ -5,6 +5,7 @@ const socketService = require('./src/services/socketService');
 const setupZerodhaWorker = require('./src/queues/workers/zerodhaWorker');
 const setupCronJobs = require('./src/utils/cronJobs');
 const slWatcher = require('./src/services/slWatcherService');
+const keepAliveService = require('./src/services/keepAliveService');
 const config = require('./src/config');
 const { logError } = require('./src/utils/logger');
 
@@ -33,17 +34,18 @@ server.listen(PORT, () => {
     console.log(`🌐 http://localhost:${PORT}`);
     console.log(`📡 Webhook: http://localhost:${PORT}/tradingview-signal`);
     console.log(`👁️  SL Watcher active\n`);
+
+    // Start continuous uptime keep-alive watchdog
+    keepAliveService.start();
 });
 
-// 🔴 Handle system-level errors
+// 🔴 Handle system-level errors gracefully without killing the server
 process.on('unhandledRejection', (err) => {
-    console.error('🔴 FATAL: Unhandled Rejection');
+    console.error('⚠️ Caught Unhandled Rejection (Server kept alive):', err?.message || err);
     logError(err);
-    server.close(() => process.exit(1));
 });
 
 process.on('uncaughtException', (err) => {
-    console.error('🔴 FATAL: Uncaught Exception');
+    console.error('⚠️ Caught Uncaught Exception (Server kept alive):', err?.message || err);
     logError(err);
-    server.close(() => process.exit(1));
 });

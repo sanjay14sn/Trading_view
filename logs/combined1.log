@@ -13309,3 +13309,5 @@
 {"level":"error","message":"SL Watcher error: No valid Zerodha access token found. Please login.","service":"tradingview-service","stack":null,"timestamp":"2026-09-11T19:14:48.742Z"}
 {"level":"error","message":"Zerodha getQuote error: No valid Zerodha access token found. Please login.","service":"tradingview-service","stack":null,"symbols":["NFO:SPX","NFO:NIFTY FUT","NFO:BANKNIFTY FUT"],"timestamp":"2026-09-11T19:14:50.743Z"}
 {"level":"error","message":"SL Watcher error: No valid Zerodha access token found. Please login.","service":"tradingview-service","stack":null,"timestamp":"2026-09-11T19:14:50.743Z"}
+{"action":"PUSH_TOKEN_REGISTERED","actor":"system","level":"info","message":"ACTION: PUSH_TOKEN_REGISTERED","payload":{"tokenPreview":"test_fcm_tok..."},"service":"tradingview-service","timestamp":"2026-09-20T06:32:10.692Z"}
+{"action":"PUSH_SIGNAL_DISPATCHED","actor":"system","level":"info","message":"ACTION: PUSH_SIGNAL_DISPATCHED","payload":{"action":"BUY","symbol":"NIFTY26SEPFUT","tokensCount":1},"service":"tradingview-service","timestamp":"2026-09-20T06:32:10.694Z"}

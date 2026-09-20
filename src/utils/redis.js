@@ -44,8 +44,11 @@ const createMockRedis = () => {
 const realRedis = new Redis(config.redis.url, {
     maxRetriesPerRequest: null,
     enableOfflineQueue: false,
-    connectTimeout: 2000,
-    retryStrategy: () => null
+    connectTimeout: 3000,
+    retryStrategy: (times) => {
+        if (times > 3) return null; // Fall back to mock after 3 retries
+        return Math.min(times * 500, 2000);
+    }
 });
 
 const mockRedis = createMockRedis();
@@ -53,8 +56,15 @@ let useMock = false;
 
 realRedis.on('error', (err) => {
     if (!useMock) {
-        console.warn('⚠️  Redis connection failed. Switching to internal mock.');
+        console.warn('⚠️  Redis connection unavailable. Seamlessly using internal mock store.');
         useMock = true;
+    }
+});
+
+realRedis.on('connect', () => {
+    if (useMock) {
+        console.log('✅ Real Redis reconnected.');
+        useMock = false;
     }
 });
 

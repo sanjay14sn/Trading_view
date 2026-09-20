@@ -9,6 +9,7 @@ const { addOrderToQueue } = require('../queues/orderQueue');
 const instrumentMapper = require('../services/instrumentMapper');
 const socketService = require('../services/socketService');
 const notificationService = require('../services/notificationService');
+const pushNotificationService = require('../services/pushNotificationService');
 const { logSignal, logError, logAction } = require('../utils/logger');
 const config = require('../config');
 const mockStore = require('../utils/mockStore');
@@ -101,7 +102,7 @@ const postSignal = async (req, res) => {
             await signalDoc.updateOne({ status: 'signal_only' });
         }
 
-        // 5. Broadcast to Dashboard & Mobile App (Triggers Telegram & full-screen call alert on mobile)
+        // 5. Broadcast to Dashboard & Mobile App via WebSocket & Push Notification (Works in COLD / CLOSED state)
         socketService.emitEvent('signal_received', {
             id: signalDoc._id,
             symbol: futuresSymbol,
@@ -109,6 +110,11 @@ const postSignal = async (req, res) => {
             price: rawSignal.price,
             receivedAt: signalDoc.receivedAt || new Date().toISOString(),
             tradeId: trade ? trade._id : null
+        });
+
+        // Dispatch High-Priority Push Notification to mobile devices
+        pushNotificationService.sendSignalNotification(signalDoc).catch(err => {
+            logError(`Push notification dispatch warning: ${err.message}`);
         });
 
         // 8. Log success
@@ -154,4 +160,21 @@ const getSignals = async (req, res) => {
     res.json(isDbConnected() ? await Signal.find().sort({ receivedAt: -1 }).limit(50) : mockStore.signals.slice(-50).reverse());
 };
 
-module.exports = { postSignal, getDashboard, getSignals, mockStore };
+/**
+ * Register Push Token from Mobile App
+ */
+const registerPushToken = async (req, res) => {
+    try {
+        const { token, platform, deviceId } = req.body || {};
+        if (!token) {
+            return res.status(400).json({ error: "Push token is required" });
+        }
+        const record = await pushNotificationService.registerDeviceToken({ token, platform, deviceId });
+        res.status(200).json({ status: "success", message: "Push token registered successfully", data: record });
+    } catch (error) {
+        logError(`Failed to register push token: ${error.message}`);
+        res.status(500).json({ error: "Failed to register push token" });
+    }
+};
+
+module.exports = { postSignal, getDashboard, getSignals, registerPushToken, mockStore };

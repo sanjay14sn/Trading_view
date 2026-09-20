@@ -18,6 +18,9 @@ router.post('/tradingview-signal',
 router.get('/dashboard', signalController.getDashboard);
 router.get('/signals', signalController.getSignals);
 
+// 📱 Push Notification Token Registration
+router.post('/api/push-token', signalController.registerPushToken);
+
 // 💼 Trade Management
 router.get('/trades', tradeController.getTrades);
 router.get('/trades/:id', tradeController.getTradeById);

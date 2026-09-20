@@ -4,8 +4,21 @@ const { logError } = require('../utils/logger');
 
 const connectDB = async () => {
     try {
-        // Disable buffering so that if DB is down, it fails fast instead of hanging
+        // Disable buffering so that if DB is down, operations fall back gracefully without hanging
         mongoose.set('bufferCommands', false);
+
+        // Connection status monitoring
+        mongoose.connection.on('disconnected', () => {
+            console.warn('⚠️  MongoDB disconnected. Attempting auto-reconnect...');
+        });
+
+        mongoose.connection.on('reconnected', () => {
+            console.log('✅ MongoDB reconnected successfully.');
+        });
+
+        mongoose.connection.on('error', (err) => {
+            console.error('❌ MongoDB connection error (swallowed):', err.message);
+        });
 
         await mongoose.connect(config.mongodb.uri, {
             serverSelectionTimeoutMS: 5000,
@@ -14,7 +27,7 @@ const connectDB = async () => {
         console.log(`📡 MongoDB Connected`);
     } catch (err) {
         console.error(`❌ MongoDB connection failed: ${err.message}`);
-        console.warn('⚠️  Falling back to In-Memory storage (for demo only).');
+        console.warn('⚠️  Falling back to In-Memory storage.');
     }
 };
 
