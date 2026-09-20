@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../providers/trading_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -474,8 +475,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               const SizedBox(height: 16),
 
-              // 📈 Performance Dashboard Hero Card (With Image Background & Black/White/Red/Green theme)
+              // 📈 Performance Dashboard Hero Card (With Interactive Equity Curve Chart)
               _buildPerformanceCard(context, provider, filteredReports, availableSymbols),
+
+              const SizedBox(height: 16),
+
+              // 🥧 Symbol Profitability Breakdown Card (Pie Chart & Leaderboard)
+              _buildSymbolBreakdownCard(filteredReports),
 
               const SizedBox(height: 16),
 
@@ -556,12 +562,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(width: 6),
 
-        // 🔴/🟢 Status Chip (Green for LIVE, Red for OFFLINE)
+        // 🔴/🟢 Status Chip
         _buildStatusChip(provider),
 
         const SizedBox(width: 6),
 
-        // Notification Bell Icon with Red Indicator
+        // Notification Bell Icon
         Stack(
           children: [
             Container(
@@ -608,14 +614,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isOnline = provider.isServerOnline;
     final color = isOnline ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final bg = isOnline ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
-    final border = isOnline ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border, width: 1),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -650,7 +655,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📈 Trade Performance Dashboard Hero Card (With Image Background & Black/White/Red/Green theme)
+  // 📈 Trade Performance Dashboard Hero Card (With Interactive Equity Curve Chart)
   Widget _buildPerformanceCard(
     BuildContext context,
     TradingProvider provider,
@@ -752,82 +757,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Big P&L readout & Sparkline Graph
+          // Big P&L readout & Live Badge
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900,
-                        color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: isPositive
-                                ? const Color(0xFF16A34A).withValues(alpha: 0.25)
-                                : const Color(0xFFDC2626).withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.15),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                                size: 11,
-                                color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                '${isPositive ? '+' : ''}Live Report',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Performance Summary',
-                          style: TextStyle(fontSize: 10.5, color: Colors.white, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ],
+              Text(
+                '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
+                  letterSpacing: -1,
                 ),
               ),
-              // Sparkline graph
-              SizedBox(
-                width: 90,
-                height: 48,
-                child: CustomPaint(
-                  painter: _SparklinePainter(isPositive: isPositive),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isPositive
+                      ? const Color(0xFF16A34A).withValues(alpha: 0.25)
+                      : const Color(0xFFDC2626).withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                      size: 11,
+                      color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      '${isPositive ? '+' : ''}Live',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
-          // 4 Stat Grid (Black & White with Red/Green highlights)
+          // 📈 Interactive Cumulative Equity Curve Line Chart
+          _buildEquityCurveChart(closedReports, isPositive),
+
+          const SizedBox(height: 16),
+
+          // 4 Stat Grid
           Row(
             children: [
               _statGridCard(
@@ -860,6 +845,297 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 value: '$winRate%',
                 label: 'Win Rate',
                 bg: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 📈 Interactive Equity Curve Line Chart (fl_chart)
+  Widget _buildEquityCurveChart(List<Map<String, dynamic>> closedReports, bool isPositive) {
+    if (closedReports.isEmpty) {
+      return const SizedBox(
+        height: 80,
+        child: Center(
+          child: Text(
+            'No closed trades in this period',
+            style: TextStyle(fontSize: 11, color: Colors.white54),
+          ),
+        ),
+      );
+    }
+
+    // Sort closed reports chronologically
+    final sorted = [...closedReports];
+    sorted.sort((a, b) {
+      final aTime = _parseDateTime(a['entryTime']);
+      final bTime = _parseDateTime(b['entryTime']);
+      if (aTime == null || bTime == null) return 0;
+      return aTime.compareTo(bTime);
+    });
+
+    final List<FlSpot> spots = [const FlSpot(0, 0)];
+    double running = 0.0;
+    for (int i = 0; i < sorted.length; i++) {
+      final pts = (sorted[i]['points'] as double?) ?? 0.0;
+      running += pts;
+      spots.add(FlSpot((i + 1).toDouble(), running));
+    }
+
+    final lineColor = isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171);
+
+    return SizedBox(
+      height: 100,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Performance Summary (Cumulative Equity Curve)',
+            style: TextStyle(fontSize: 10.5, color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: running == 0 ? 1 : (running.abs() / 2),
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      strokeWidth: 1,
+                      dashArray: [4, 4],
+                    );
+                  },
+                ),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  handleBuiltInTouches: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (touchedSpot) => const Color(0xFF0F172A),
+                    tooltipBorder: const BorderSide(color: Color(0xFF334155)),
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final index = spot.x.toInt();
+                        final valStr = '${spot.y >= 0 ? '+' : ''}${spot.y.toStringAsFixed(1)} Pts';
+                        return LineTooltipItem(
+                          index == 0 ? 'Start: 0 Pts' : 'Trade #$index: $valStr',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: lineColor,
+                    barWidth: 2.8,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: spots.length <= 12,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 3.5,
+                          color: lineColor,
+                          strokeWidth: 1.5,
+                          strokeColor: Colors.white,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          lineColor.withValues(alpha: 0.35),
+                          lineColor.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🥧 Symbol Profitability Breakdown Card (Pie Chart & Leaderboard)
+  Widget _buildSymbolBreakdownCard(List<Map<String, dynamic>> reports) {
+    final closedReports = reports.where((r) => r['points'] != null).toList();
+    if (closedReports.isEmpty) return const SizedBox.shrink();
+
+    // Group by symbol
+    final Map<String, Map<String, dynamic>> symbolStats = {};
+    for (final r in closedReports) {
+      final sym = (r['symbol'] ?? 'UNKNOWN').toString();
+      final pts = (r['points'] as double?) ?? 0.0;
+      final isWin = pts > 0;
+
+      final item = symbolStats.putIfAbsent(sym, () => {
+        'symbol': sym,
+        'points': 0.0,
+        'wins': 0,
+        'total': 0,
+      });
+
+      item['points'] = (item['points'] as double) + pts;
+      item['total'] = (item['total'] as int) + 1;
+      if (isWin) item['wins'] = (item['wins'] as int) + 1;
+    }
+
+    final sortedStats = symbolStats.values.toList();
+    sortedStats.sort((a, b) => (b['points'] as double).compareTo(a['points'] as double));
+
+    final palette = [
+      const Color(0xFF16A34A),
+      const Color(0xFF2563EB),
+      const Color(0xFF9333EA),
+      const Color(0xFFEA580C),
+      const Color(0xFFD97706),
+      const Color(0xFF0891B2),
+    ];
+
+    final pieSections = <PieChartSectionData>[];
+    for (int i = 0; i < sortedStats.length; i++) {
+      final s = sortedStats[i];
+      final color = palette[i % palette.length];
+      final pts = (s['points'] as double).abs();
+      final val = pts == 0 ? 1.0 : pts;
+      pieSections.add(
+        PieChartSectionData(
+          color: color,
+          value: val,
+          title: s['symbol'] as String,
+          radius: 36,
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.pie_chart_rounded, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Symbol Performance Breakdown',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // PieChart + Legend Side by Side
+          Row(
+            children: [
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 3,
+                    centerSpaceRadius: 22,
+                    sections: pieSections,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  children: List.generate(sortedStats.length, (idx) {
+                    final s = sortedStats[idx];
+                    final color = palette[idx % palette.length];
+                    final symbol = s['symbol'] as String;
+                    final pts = s['points'] as double;
+                    final total = s['total'] as int;
+                    final wins = s['wins'] as int;
+                    final winRate = total > 0 ? ((wins / total) * 100).toStringAsFixed(0) : '0';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              symbol,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '$winRate% Win',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)} Pts',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: pts >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
               ),
             ],
           ),
@@ -1149,59 +1425,4 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-}
-
-/// CustomPainter for green/red sparkline wave line in performance card
-class _SparklinePainter extends CustomPainter {
-  final bool isPositive;
-  _SparklinePainter({required this.isPositive});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final color = isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171);
-
-    final path = Path();
-    path.moveTo(0, size.height * 0.75);
-    path.cubicTo(
-      size.width * 0.25, size.height * 0.55,
-      size.width * 0.4, size.height * 0.85,
-      size.width * 0.6, size.height * 0.45,
-    );
-    path.cubicTo(
-      size.width * 0.75, size.height * 0.15,
-      size.width * 0.85, size.height * 0.35,
-      size.width, size.height * 0.15,
-    );
-
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    final fillGradient = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        color.withValues(alpha: 0.28),
-        color.withValues(alpha: 0.0),
-      ],
-    );
-
-    final fillPaint = Paint()
-      ..shader = fillGradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
-
-    canvas.drawPath(fillPath, fillPaint);
-
-    final strokePaint = Paint()
-      ..color = color
-      ..strokeWidth = 2.4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawPath(path, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

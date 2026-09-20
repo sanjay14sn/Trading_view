@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../providers/trading_provider.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -303,6 +304,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
               const SizedBox(height: 10),
             ],
+
+            // ── Symbol Profitability Breakdown Pie Chart Card ──
+            _buildSymbolBreakdownCard(filteredReports),
+
+            const SizedBox(height: 14),
 
             // ── Recent Trades Header & Sort Dropdown ──────────────
             Row(
@@ -1027,6 +1033,174 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSymbolBreakdownCard(List<Map<String, dynamic>> reports) {
+    final closedReports = reports.where((r) => r['points'] != null).toList();
+    if (closedReports.isEmpty) return const SizedBox.shrink();
+
+    final Map<String, Map<String, dynamic>> symbolStats = {};
+    for (final r in closedReports) {
+      final sym = (r['symbol'] ?? 'UNKNOWN').toString();
+      final pts = (r['points'] as double?) ?? 0.0;
+      final isWin = pts > 0;
+
+      final item = symbolStats.putIfAbsent(sym, () => {
+        'symbol': sym,
+        'points': 0.0,
+        'wins': 0,
+        'total': 0,
+      });
+
+      item['points'] = (item['points'] as double) + pts;
+      item['total'] = (item['total'] as int) + 1;
+      if (isWin) item['wins'] = (item['wins'] as int) + 1;
+    }
+
+    final sortedStats = symbolStats.values.toList();
+    sortedStats.sort((a, b) => (b['points'] as double).compareTo(a['points'] as double));
+
+    final palette = [
+      const Color(0xFF16A34A),
+      const Color(0xFF2563EB),
+      const Color(0xFF9333EA),
+      const Color(0xFFEA580C),
+      const Color(0xFFD97706),
+      const Color(0xFF0891B2),
+    ];
+
+    final pieSections = <PieChartSectionData>[];
+    for (int i = 0; i < sortedStats.length; i++) {
+      final s = sortedStats[i];
+      final color = palette[i % palette.length];
+      final pts = (s['points'] as double).abs();
+      final val = pts == 0 ? 1.0 : pts;
+      pieSections.add(
+        PieChartSectionData(
+          color: color,
+          value: val,
+          title: s['symbol'] as String,
+          radius: 36,
+          titleStyle: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.pie_chart_rounded, color: Color(0xFF0F172A), size: 18),
+              SizedBox(width: 8),
+              Text(
+                'Symbol Performance Breakdown',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // PieChart + Legend Side by Side
+          Row(
+            children: [
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: PieChart(
+                  PieChartData(
+                    sectionsSpace: 3,
+                    centerSpaceRadius: 22,
+                    sections: pieSections,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  children: List.generate(sortedStats.length, (idx) {
+                    final s = sortedStats[idx];
+                    final color = palette[idx % palette.length];
+                    final symbol = s['symbol'] as String;
+                    final pts = s['points'] as double;
+                    final total = s['total'] as int;
+                    final wins = s['wins'] as int;
+                    final winRate = total > 0 ? ((wins / total) * 100).toStringAsFixed(0) : '0';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 9,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              symbol,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '$winRate% Win',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${pts >= 0 ? '+' : ''}${pts.toStringAsFixed(1)} Pts',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              color: pts >= 0 ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
