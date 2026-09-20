@@ -474,7 +474,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               const SizedBox(height: 16),
 
-              // 📈 Performance Dashboard Card (With Bottom Sheet Filter Trigger)
+              // 📈 Performance Dashboard Hero Card (With Image Background & Black/White/Red/Green theme)
               _buildPerformanceCard(context, provider, filteredReports, availableSymbols),
 
               const SizedBox(height: 16),
@@ -505,11 +505,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           height: 42,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: const Color(0xFFE2E8F0),
+            color: const Color(0xFF0F172A),
             border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -522,7 +522,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               fit: BoxFit.cover,
               errorBuilder: (ctx, err, stack) => const Icon(
                 Icons.person_rounded,
-                color: AppTheme.textSecondary,
+                color: Colors.white,
                 size: 24,
               ),
             ),
@@ -537,15 +537,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'Hello,',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
                 'Sanjay',
                 style: TextStyle(
                   fontSize: 17,
-                  color: AppTheme.textPrimary,
+                  color: Color(0xFF0F172A),
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -556,12 +556,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(width: 6),
 
-        // 🔴/🟢 Status Chip
+        // 🔴/🟢 Status Chip (Green for LIVE, Red for OFFLINE)
         _buildStatusChip(provider),
 
         const SizedBox(width: 6),
 
-        // Notification Bell Icon with indicator
+        // Notification Bell Icon with Red Indicator
         Stack(
           children: [
             Container(
@@ -570,7 +570,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.border),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.03),
@@ -581,7 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                color: AppTheme.textPrimary,
+                color: Color(0xFF0F172A),
                 size: 19,
               ),
             ),
@@ -592,7 +592,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 7,
                 height: 7,
                 decoration: const BoxDecoration(
-                  color: AppTheme.sellRed,
+                  color: Color(0xFFDC2626),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -606,9 +606,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 🔴/🟢 Status Chip
   Widget _buildStatusChip(TradingProvider provider) {
     final isOnline = provider.isServerOnline;
-    final color = isOnline ? AppTheme.buyGreen : AppTheme.sellRed;
-    final bg = isOnline ? const Color(0xFFECFDF5) : const Color(0xFFFFF0F0);
-    final border = isOnline ? const Color(0xFFA7F3D0) : const Color(0xFFFFCACA);
+    final color = isOnline ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final bg = isOnline ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2);
+    final border = isOnline ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -640,7 +640,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             isOnline ? 'LIVE' : 'OFFLINE',
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
               color: color,
               letterSpacing: 0.3,
             ),
@@ -650,7 +650,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // 📈 Trade Performance Dashboard Card
+  // 📈 Trade Performance Dashboard Hero Card (With Image Background & Black/White/Red/Green theme)
   Widget _buildPerformanceCard(
     BuildContext context,
     TradingProvider provider,
@@ -684,24 +684,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isPositive
-              ? [const Color(0xFFEFFDF5), const Color(0xFFF0FDF4), Colors.white]
-              : [const Color(0xFFFEF2F2), const Color(0xFFFFF1F1), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF0F172A), // Dark Slate Black
         borderRadius: BorderRadius.circular(24),
+        image: const DecorationImage(
+          image: NetworkImage('https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800'),
+          fit: BoxFit.cover,
+          opacity: 0.20,
+        ),
         border: Border.all(
-          color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFECDD3),
+          color: isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: (isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.06),
-            blurRadius: 16,
+            color: (isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626)).withValues(alpha: 0.15),
+            blurRadius: 18,
             offset: const Offset(0, 6),
           ),
         ],
@@ -713,12 +712,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Total P&L (Points)',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                  color: Color(0xFF94A3B8),
                 ),
               ),
 
@@ -728,30 +727,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFCBD5E1)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 4,
-                      ),
-                    ],
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.tune_rounded, size: 13, color: Color(0xFF0F172A)),
+                      const Icon(Icons.tune_rounded, size: 13, color: Colors.white),
                       const SizedBox(width: 4),
                       Text(
                         '$periodBadge • $pairBadge',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 2),
-                      const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: Color(0xFF64748B)),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: Colors.white70),
                     ],
                   ),
                 ),
@@ -759,7 +752,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           // Big P&L readout & Sparkline Graph
           Row(
@@ -772,9 +765,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Text(
                       '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
                       style: TextStyle(
-                        fontSize: 30,
+                        fontSize: 34,
                         fontWeight: FontWeight.w900,
-                        color: isPositive ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+                        color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
                         letterSpacing: -1,
                       ),
                     ),
@@ -784,15 +777,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: isPositive ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                            color: isPositive
+                                ? const Color(0xFF16A34A).withValues(alpha: 0.25)
+                                : const Color(0xFFDC2626).withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                            ),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
                                 size: 11,
-                                color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
                               ),
                               const SizedBox(width: 2),
                               Text(
@@ -800,7 +798,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
-                                  color: isPositive ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                                  color: isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171),
                                 ),
                               ),
                             ],
@@ -809,7 +807,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(width: 6),
                         const Text(
                           'Performance Summary',
-                          style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -819,7 +817,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Sparkline graph
               SizedBox(
                 width: 90,
-                height: 44,
+                height: 48,
                 child: CustomPaint(
                   painter: _SparklinePainter(isPositive: isPositive),
                 ),
@@ -827,33 +825,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // 4 Stat Grid
+          // 4 Stat Grid (Black & White with Red/Green highlights)
           Row(
             children: [
               _statGridCard(
                 icon: Icons.bar_chart_rounded,
-                iconColor: const Color(0xFF16A34A),
+                iconColor: const Color(0xFF0F172A),
                 value: '$totalTradesCount',
                 label: 'Trades',
                 bg: Colors.white,
               ),
               const SizedBox(width: 8),
               _statGridCard(
-                icon: Icons.keyboard_arrow_up_rounded,
-                iconColor: const Color(0xFF16A34A),
+                icon: Icons.arrow_upward_rounded,
+                iconColor: const Color(0xFF15803D),
                 value: '$winners',
                 label: 'Wins',
-                bg: Colors.white,
+                bg: const Color(0xFFDCFCE7),
               ),
               const SizedBox(width: 8),
               _statGridCard(
-                icon: Icons.keyboard_arrow_down_rounded,
-                iconColor: const Color(0xFFDC2626),
+                icon: Icons.arrow_downward_rounded,
+                iconColor: const Color(0xFFB91C1C),
                 value: '$losers',
                 label: 'Losses',
-                bg: const Color(0xFFFEF2F2),
+                bg: const Color(0xFFFEE2E2),
               ),
               const SizedBox(width: 8),
               _statGridCard(
@@ -883,7 +881,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Column(
           children: [
@@ -902,8 +900,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label,
               style: const TextStyle(
                 fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF475569),
               ),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
@@ -919,9 +917,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -949,7 +954,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
                   SizedBox(height: 2),
@@ -957,7 +962,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'Real-time alerts processed',
                     style: TextStyle(
                       fontSize: 11,
-                      color: AppTheme.textSecondary,
+                      color: Color(0xFF64748B),
                     ),
                   ),
                 ],
@@ -988,11 +993,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -1002,7 +1007,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.dns_rounded, color: AppTheme.primary, size: 18),
+              const Icon(Icons.dns_rounded, color: Color(0xFF0F172A), size: 18),
               const SizedBox(width: 6),
               const Expanded(
                 child: Text(
@@ -1010,7 +1015,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: Color(0xFF0F172A),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1062,7 +1067,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             const Text(
                               'Database',
-                              style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
@@ -1103,7 +1108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.layers_rounded, color: Color(0xFFEF4444), size: 20),
+                      const Icon(Icons.layers_rounded, color: Color(0xFFDC2626), size: 20),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Column(
@@ -1111,7 +1116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             const Text(
                               'Redis Queue',
-                              style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
@@ -1153,7 +1158,7 @@ class _SparklinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final color = isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final color = isPositive ? const Color(0xFF4ADE80) : const Color(0xFFF87171);
 
     final path = Path();
     path.moveTo(0, size.height * 0.75);
@@ -1177,7 +1182,7 @@ class _SparklinePainter extends CustomPainter {
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        color.withValues(alpha: 0.18),
+        color.withValues(alpha: 0.28),
         color.withValues(alpha: 0.0),
       ],
     );
@@ -1190,7 +1195,7 @@ class _SparklinePainter extends CustomPainter {
 
     final strokePaint = Paint()
       ..color = color
-      ..strokeWidth = 2.2
+      ..strokeWidth = 2.4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
