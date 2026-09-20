@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "132014883979",
+    "project_id": "tvalgo2026",
+    "storage_bucket": "tvalgo2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132014883979:android:5e7e9201d24a56c0b6408e",
+        "android_client_info": {
+          "package_name": "com.example.mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmixSrOgVhuWg2FIwygp0EkUFV7tdDMAM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
