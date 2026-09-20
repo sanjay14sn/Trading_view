@@ -717,7 +717,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF94A3B8),
+                  color: Colors.white,
                 ),
               ),
 
@@ -807,7 +807,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(width: 6),
                         const Text(
                           'Performance Summary',
-                          style: TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 10.5, color: Colors.white, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
