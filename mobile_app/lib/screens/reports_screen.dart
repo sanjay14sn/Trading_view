@@ -12,9 +12,10 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  String _selectedOutcome = 'ALL'; // ALL, PROFIT, LOSS, OPEN
+  String _selectedOutcome = 'ALL'; // ALL, PROFITS, LOSSES
   String _selectedSymbol = 'ALL'; // ALL or specific symbol
-  String _selectedDateRange = 'ALL'; // ALL, TODAY, THIS_WEEK
+  String _selectedDateRange = 'TODAY'; // TODAY, THIS_WEEK, THIS_MONTH, CUSTOM
+  String _sortOrder = 'LATEST'; // LATEST, OLDEST, HIGHEST_PNL
 
   static DateTime? _parseDateTime(dynamic val) {
     if (val == null) return null;
@@ -31,13 +32,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   static String _formatTime(dynamic val) {
     final dt = _parseDateTime(val);
     if (dt == null) return '';
-    final now = DateTime.now();
-    final isToday = dt.year == now.year && dt.month == now.month && dt.day == now.day;
-    if (isToday) {
-      return DateFormat('hh:mm a').format(dt);
-    } else {
-      return DateFormat('dd MMM, hh:mm a').format(dt);
-    }
+    return DateFormat('dd MMM, hh:mm a').format(dt);
   }
 
   /// Pairs BUY → SELL signals per symbol and calculates point difference
@@ -68,6 +63,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (openEntry == null) {
           openEntry = {
             'id': id,
+            'tradeId': sig['tradeId'],
             'symbol': symbol,
             'entryAction': action,
             'entryPrice': price,
@@ -129,27 +125,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
     });
 
-    reports.sort((a, b) {
-      final aTime = _parseDateTime(a['entryTime']);
-      final bTime = _parseDateTime(b['entryTime']);
-      if (aTime == null || bTime == null) return 0;
-      return bTime.compareTo(aTime);
-    });
-
     return reports;
   }
 
-  List<Map<String, dynamic>> _filterReports(List<Map<String, dynamic>> rawReports) {
+  List<Map<String, dynamic>> _filterAndSortReports(List<Map<String, dynamic>> rawReports) {
     final now = DateTime.now();
-    return rawReports.where((r) {
+
+    List<Map<String, dynamic>> filtered = rawReports.where((r) {
       // 1. Outcome Filter
-      if (_selectedOutcome == 'PROFIT' && (r['points'] == null || (r['points'] as double) <= 0)) {
+      if (_selectedOutcome == 'PROFITS' && (r['points'] == null || (r['points'] as double) <= 0)) {
         return false;
       }
-      if (_selectedOutcome == 'LOSS' && (r['points'] == null || (r['points'] as double) >= 0)) {
-        return false;
-      }
-      if (_selectedOutcome == 'OPEN' && r['exitAction'] != 'OPEN') {
+      if (_selectedOutcome == 'LOSSES' && (r['points'] == null || (r['points'] as double) >= 0)) {
         return false;
       }
 
@@ -167,270 +154,206 @@ class _ReportsScreenState extends State<ReportsScreen> {
       } else if (_selectedDateRange == 'THIS_WEEK' && entryDt != null) {
         final diffDays = now.difference(entryDt).inDays;
         if (diffDays > 7) return false;
+      } else if (_selectedDateRange == 'THIS_MONTH' && entryDt != null) {
+        if (entryDt.year != now.year || entryDt.month != now.month) return false;
       }
 
       return true;
     }).toList();
+
+    // Sorting
+    filtered.sort((a, b) {
+      if (_sortOrder == 'HIGHEST_PNL') {
+        final aPoints = (a['points'] as double?) ?? -999999;
+        final bPoints = (b['points'] as double?) ?? -999999;
+        return bPoints.compareTo(aPoints);
+      } else if (_sortOrder == 'OLDEST') {
+        final aTime = _parseDateTime(a['entryTime']);
+        final bTime = _parseDateTime(b['entryTime']);
+        if (aTime == null || bTime == null) return 0;
+        return aTime.compareTo(bTime);
+      } else {
+        // LATEST
+        final aTime = _parseDateTime(a['entryTime']);
+        final bTime = _parseDateTime(b['entryTime']);
+        if (aTime == null || bTime == null) return 0;
+        return bTime.compareTo(aTime);
+      }
+    });
+
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TradingProvider>(context);
     final allReports = _buildTradeReports(provider.signals);
-    final filteredReports = _filterReports(allReports);
+    final filteredReports = _filterAndSortReports(allReports);
 
     // Dynamic symbols list
     final availableSymbols = ['ALL', ...allReports.map((r) => r['symbol'] as String).toSet()];
 
-    // Summary totals based on filtered reports
+    // Metrics calculation
     final closedReports = filteredReports.where((r) => r['points'] != null).toList();
     final totalPoints = closedReports.fold<double>(0, (sum, r) => sum + (r['points'] as double));
     final winners = closedReports.where((r) => (r['points'] as double) > 0).length;
     final losers = closedReports.where((r) => (r['points'] as double) < 0).length;
+    final totalTradesCount = filteredReports.length;
+    final winRate = closedReports.isNotEmpty
+        ? ((winners / closedReports.length) * 100).toStringAsFixed(1)
+        : '0.0';
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('Trade Reports'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => provider.fetchSignals(),
-            tooltip: 'Refresh Reports',
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep_rounded, color: AppTheme.sellRed),
-            tooltip: 'Clear All Reports',
-            onPressed: () => _confirmClearAll(context, provider),
-          ),
-        ],
+      backgroundColor: const Color(0xFFF6F8FC),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF1D61E7),
+        elevation: 6,
+        icon: const Icon(Icons.add, color: Colors.white, size: 22),
+        label: const Text('Add Trade', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+        onPressed: () => _showAddTradeDialog(context, provider),
       ),
-      body: Column(
-        children: [
-          // ── Filter Controls ───────────────────────────────────────
-          _buildFilterBar(availableSymbols),
-
-          // ── Summary Banner ──────────────────────────────────────────
-          if (closedReports.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: totalPoints >= 0
-                      ? [const Color(0xFF047857), const Color(0xFF10B981)]
-                      : [const Color(0xFFB91C1C), const Color(0xFFEF4444)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: (totalPoints >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444))
-                        .withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () => provider.refreshAll(),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            children: [
+              // ── Header Title Row ──────────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'FILTERED P&L (Points)',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${totalPoints >= 0 ? '+' : ''}${totalPoints.toStringAsFixed(1)} pts',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _statBadge('${closedReports.length}', 'Trades'),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          _statBadge('$winners', '▲ Win', Colors.white.withValues(alpha: 0.25)),
-                          const SizedBox(width: 6),
-                          _statBadge('$losers', '▼ Loss', Colors.white.withValues(alpha: 0.15)),
-                        ],
+                      Text(
+                        'Trade Reports',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.5,
+                        ),
                       ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Analyze your trades and track performance',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      _actionIconButton(Icons.refresh_rounded, () => provider.refreshAll()),
+                      const SizedBox(width: 8),
+                      _actionIconButton(Icons.calendar_today_rounded, () => _showDatePicker(context)),
                     ],
                   ),
                 ],
               ),
-            ),
 
-          // ── Trade List ──────────────────────────────────────────────
-          Expanded(
-            child: filteredReports.isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-                    onRefresh: () => provider.refreshAll(),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: filteredReports.length,
-                      itemBuilder: (context, index) {
-                        return _buildReportCard(context, provider, filteredReports[index]);
-                      },
+              const SizedBox(height: 16),
+
+              // ── Filter Row 1: Segmented Control & Symbol Selector ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          _segmentedTab('ALL', 'All'),
+                          _segmentedTab('PROFITS', 'Profits'),
+                          _segmentedTab('LOSSES', 'Losses'),
+                        ],
+                      ),
                     ),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
+                  const SizedBox(width: 10),
+                  _symbolDropdown(availableSymbols),
+                ],
+              ),
 
-  Widget _buildFilterBar(List<String> symbols) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      child: Column(
-        children: [
-          // Filter Chips Row 1: Outcome Filter
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const Icon(Icons.filter_list_rounded, size: 18, color: AppTheme.textSecondary),
-                const SizedBox(width: 8),
-                _filterChip('ALL', 'All Outcomes', _selectedOutcome == 'ALL', (v) {
-                  setState(() => _selectedOutcome = 'ALL');
-                }),
-                const SizedBox(width: 6),
-                _filterChip('PROFIT', 'Profit Only (Win)', _selectedOutcome == 'PROFIT', (v) {
-                  setState(() => _selectedOutcome = 'PROFIT');
-                }, bg: const Color(0xFFDCFCE7), fg: const Color(0xFF15803D)),
-                const SizedBox(width: 6),
-                _filterChip('LOSS', 'Loss Only', _selectedOutcome == 'LOSS', (v) {
-                  setState(() => _selectedOutcome = 'LOSS');
-                }, bg: const Color(0xFFFEE2E2), fg: const Color(0xFFB91C1C)),
-                const SizedBox(width: 6),
-                _filterChip('OPEN', 'Open Positions', _selectedOutcome == 'OPEN', (v) {
-                  setState(() => _selectedOutcome = 'OPEN');
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Filter Chips Row 2: Symbol & Date Filters
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const Icon(Icons.schedule_rounded, size: 16, color: AppTheme.textSecondary),
-                const SizedBox(width: 6),
-                _filterChip('ALL_DATE', 'All Time', _selectedDateRange == 'ALL', (v) {
-                  setState(() => _selectedDateRange = 'ALL');
-                }),
-                const SizedBox(width: 4),
-                _filterChip('TODAY', 'Today', _selectedDateRange == 'TODAY', (v) {
-                  setState(() => _selectedDateRange = 'TODAY');
-                }),
-                const SizedBox(width: 4),
-                _filterChip('THIS_WEEK', 'This Week', _selectedDateRange == 'THIS_WEEK', (v) {
-                  setState(() => _selectedDateRange = 'THIS_WEEK');
-                }),
-                const SizedBox(width: 12),
-                const Icon(Icons.show_chart_rounded, size: 16, color: AppTheme.textSecondary),
-                const SizedBox(width: 6),
-                ...symbols.map((sym) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: _filterChip(sym, sym, _selectedSymbol == sym, (v) {
-                      setState(() => _selectedSymbol = sym);
-                    }),
-                  );
-                }),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+              const SizedBox(height: 10),
 
-  Widget _filterChip(String id, String label, bool isSelected, Function(bool) onSelected, {Color? bg, Color? fg}) {
-    return FilterChip(
-      selected: isSelected,
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-          color: isSelected ? (fg ?? Colors.white) : AppTheme.textSecondary,
+              // ── Filter Row 2: Date Filters ────────────────────────
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _datePill('TODAY', 'Today'),
+                    const SizedBox(width: 8),
+                    _datePill('THIS_WEEK', 'This Week'),
+                    const SizedBox(width: 8),
+                    _datePill('THIS_MONTH', 'This Month'),
+                    const SizedBox(width: 8),
+                    _datePill('CUSTOM', 'Custom 📅'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Performance Analytics Card (Total P&L) ────────────
+              _buildPerformanceCard(totalPoints, totalTradesCount, winners, losers, winRate, availableSymbols),
+
+              const SizedBox(height: 20),
+
+              // ── Recent Trades Header & Sort Dropdown ──────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Recent Trades',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  _sortDropdown(),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // ── Trade Report Cards List ───────────────────────────
+              if (filteredReports.isEmpty)
+                _buildEmptyState()
+              else
+                ...filteredReports.map((report) => _buildTradeCard(context, provider, report)),
+
+              const SizedBox(height: 80), // bottom padding for FAB
+            ],
+          ),
         ),
       ),
-      selectedColor: bg ?? AppTheme.primary,
-      backgroundColor: Colors.grey.shade100,
-      checkmarkColor: fg ?? Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      visualDensity: VisualDensity.compact,
-      onSelected: onSelected,
     );
   }
 
-  Widget _statBadge(String value, String label, [Color? bg]) {
+  Widget _actionIconButton(IconData icon, VoidCallback onPressed) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg ?? Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 8, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReportCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
-    final symbol = report['symbol'] as String;
-    final entryAction = report['entryAction'] as String;
-    final exitAction = report['exitAction'] as String;
-    final entryPrice = report['entryPrice'] as double;
-    final exitPrice = report['exitPrice'] as double?;
-    final double? points = report['points'] as double?;
-    final isOpen = exitAction == 'OPEN';
-    final isProfit = (points ?? 0) >= 0;
-
-    final String entryTimeStr = _formatTime(report['entryTime']);
-    final String exitTimeStr = _formatTime(report['exitTime']);
-
-    final entryColor = entryAction == 'BUY' ? AppTheme.buyGreen : AppTheme.sellRed;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isOpen
-              ? AppTheme.border
-              : isProfit
-                  ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                  : const Color(0xFFEF4444).withValues(alpha: 0.3),
-          width: isOpen ? 1 : 1.5,
-        ),
+        shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -439,102 +362,300 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header: Symbol + Points Badge + Delete Menu ──
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    symbol,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      color: AppTheme.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (isOpen)
-                  _chip('OPEN', const Color(0xFFF1F5F9), AppTheme.textSecondary)
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isProfit ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${isProfit ? '+' : ''}${points!.toStringAsFixed(1)} pts',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                        color: isProfit ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
-                      ),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.grey),
-                  tooltip: 'Delete Report Record',
-                  onPressed: () => _confirmDeleteTrade(context, provider, report),
-                ),
-              ],
+      child: IconButton(
+        icon: Icon(icon, size: 20, color: const Color(0xFF334155)),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _segmentedTab(String key, String label) {
+    final isSelected = _selectedOutcome == key;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedOutcome = key),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF1D61E7) : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 12),
+  Widget _symbolDropdown(List<String> symbols) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedSymbol,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B), size: 20),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedSymbol = val);
+          },
+          items: symbols.map((sym) {
+            final displayLabel = sym == 'ALL' ? 'All Pairs' : sym;
+            return DropdownMenuItem<String>(
+              value: sym,
+              child: Text(displayLabel),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
 
-            // ── BUY → SELL Flow ──
-            Row(
-              children: [
-                Expanded(
-                  child: _priceBox(
-                    label: entryAction,
-                    price: entryPrice,
-                    time: entryTimeStr,
-                    color: entryColor,
-                    isEntry: true,
-                  ),
+  Widget _datePill(String key, String label) {
+    final isSelected = _selectedDateRange == key;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedDateRange = key),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1D61E7) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF1D61E7) : const Color(0xFFE2E8F0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPerformanceCard(
+      double totalPoints, int totalTrades, int wins, int losses, String winRate, List<String> symbols) {
+    final isPositive = totalPoints >= 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEFFDF5), Color(0xFFF0FDF4), Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header inside Card
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total P&L (Points)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF047857),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        color: isOpen
-                            ? AppTheme.textSecondary
-                            : isProfit
-                                ? AppTheme.buyGreen
-                                : AppTheme.sellRed,
-                        size: 20,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      _selectedSymbol == 'ALL' ? 'All Pairs' : _selectedSymbol,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // Big P&L readout & Mini Sparkline Graph
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${isPositive ? '+' : ''}${NumberFormat('#,##0.0').format(totalPoints)}',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF047857),
+                        letterSpacing: -1,
                       ),
-                      if (!isOpen && points != null)
-                        Text(
-                          '${isProfit ? '+' : ''}${points.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: isProfit ? AppTheme.buyGreen : AppTheme.sellRed,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isPositive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                size: 12,
+                                color: const Color(0xFF15803D),
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${isPositive ? '+' : ''}12.4%',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF15803D),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: isOpen
-                      ? _pendingBox()
-                      : _priceBox(
-                          label: exitAction,
-                          price: exitPrice!,
-                          time: exitTimeStr,
-                          color: exitAction == 'BUY' ? AppTheme.buyGreen : AppTheme.sellRed,
-                          isEntry: false,
+                        const SizedBox(width: 6),
+                        const Text(
+                          'vs previous period',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                         ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              // Sparkline graph
+              SizedBox(
+                width: 110,
+                height: 50,
+                child: CustomPaint(
+                  painter: _SparklinePainter(),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 4 Stat Grid
+          Row(
+            children: [
+              _statGridCard(
+                icon: Icons.bar_chart_rounded,
+                iconColor: const Color(0xFF2563EB),
+                value: '$totalTrades',
+                label: 'Total Trades',
+                bg: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.keyboard_arrow_up_rounded,
+                iconColor: const Color(0xFF16A34A),
+                value: '$wins',
+                label: 'Wins',
+                bg: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.keyboard_arrow_down_rounded,
+                iconColor: const Color(0xFFDC2626),
+                value: '$losses',
+                label: 'Losses',
+                bg: const Color(0xFFFEF2F2),
+              ),
+              const SizedBox(width: 8),
+              _statGridCard(
+                icon: Icons.percent_rounded,
+                iconColor: const Color(0xFF0F172A),
+                value: '$winRate%',
+                label: 'Win Rate',
+                bg: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statGridCard({
+    required IconData icon,
+    required Color iconColor,
+    required String value,
+    required String label,
+    required Color bg,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 20, color: iconColor),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -542,84 +663,333 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _priceBox({
-    required String label,
-    required double price,
-    required String time,
-    required Color color,
-    required bool isEntry,
-  }) {
+  Widget _sortDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.swap_vert_rounded, size: 16, color: Color(0xFF64748B)),
+          const SizedBox(width: 4),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _sortOrder,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+              onChanged: (val) {
+                if (val != null) setState(() => _sortOrder = val);
+              },
+              items: const [
+                DropdownMenuItem(value: 'LATEST', child: Text('Latest First')),
+                DropdownMenuItem(value: 'OLDEST', child: Text('Oldest First')),
+                DropdownMenuItem(value: 'HIGHEST_PNL', child: Text('Highest P&L')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTradeCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
+    final symbol = report['symbol'] as String;
+    final entryAction = report['entryAction'] as String;
+    final exitAction = report['exitAction'] as String;
+    final entryPrice = report['entryPrice'] as double;
+    final exitPrice = report['exitPrice'] as double?;
+    final double? points = report['points'] as double?;
+    final isOpen = exitAction == 'OPEN';
+    final isWin = (points ?? 0) > 0;
+    final isLoss = (points ?? 0) < 0;
+
+    final String timeStr = _formatTime(report['entryTime']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: isEntry ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11)),
-          const SizedBox(height: 3),
-          Text('₹${price.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppTheme.textPrimary)),
-          if (time.isNotEmpty)
-            Text(time, style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary)),
+          // Card Header: Avatar + Symbol + BUY Tag + Chevron/Delete Menu
+          Row(
+            children: [
+              // Crypto / Asset Avatar Circle
+              _assetAvatar(symbol),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      symbol,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Action Badge (BUY / SELL)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: entryAction == 'BUY' ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  entryAction,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    color: entryAction == 'BUY' ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 6),
+
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8), size: 22),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (val) {
+                  if (val == 'delete') {
+                    _confirmDeleteTrade(context, provider, report);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+                        SizedBox(width: 8),
+                        Text('Delete Record', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // 3-Column Metrics Row: Entry Price | Exit Price | P&L (Points) + Status Badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Entry Price
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Entry Price', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 3),
+                  Text('₹${NumberFormat('#,##0.0').format(entryPrice)}',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                ],
+              ),
+
+              // Exit Price
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Exit Price', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 3),
+                  Text(
+                    exitPrice != null ? '₹${NumberFormat('#,##0.0').format(exitPrice)}' : '-',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                  ),
+                ],
+              ),
+
+              // P&L (Points)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('P&L (Points)', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 3),
+                  Text(
+                    points != null ? '${points >= 0 ? '+' : ''}${points.toStringAsFixed(0)}' : '-',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: isOpen
+                          ? const Color(0xFF94A3B8)
+                          : isWin
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Status Pill (WIN / LOSS / OPEN)
+              _statusBadge(isOpen, isWin, isLoss),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _pendingBox() {
+  Widget _assetAvatar(String symbol) {
+    bool isBtc = symbol.toUpperCase().contains('BTC');
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.border),
+        color: isBtc ? const Color(0xFFF7931A) : const Color(0xFF1D61E7),
+        shape: BoxShape.circle,
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text('AWAITING', style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w700, fontSize: 10)),
-          SizedBox(height: 3),
-          Text('Next Signal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: AppTheme.textSecondary)),
-        ],
-      ),
+      alignment: Alignment.center,
+      child: isBtc
+          ? const Text('₿', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20))
+          : Text(
+              symbol.substring(0, 1).toUpperCase(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+            ),
     );
   }
 
-  Widget _chip(String label, Color bg, Color fg) {
+  Widget _statusBadge(bool isOpen, bool isWin, bool isLoss) {
+    String text = 'OPEN';
+    Color bg = const Color(0xFFEFF6FF);
+    Color fg = const Color(0xFF2563EB);
+
+    if (!isOpen) {
+      if (isWin) {
+        text = 'WIN';
+        bg = const Color(0xFFDCFCE7);
+        fg = const Color(0xFF15803D);
+      } else {
+        text = 'LOSS';
+        bg = const Color(0xFFFEE2E2);
+        fg = const Color(0xFFB91C1C);
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+          color: fg,
+        ),
+      ),
     );
   }
 
   Widget _buildEmptyState() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: const [
-        SizedBox(height: 100),
-        Center(
-          child: Column(
-            children: [
-              Icon(Icons.bar_chart_rounded, size: 52, color: AppTheme.textSecondary),
-              SizedBox(height: 12),
-              Text(
-                'No trade reports found.',
-                style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w700, fontSize: 15),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Try adjusting your filter selection or clear history.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(40),
+      alignment: Alignment.center,
+      child: const Column(
+        children: [
+          Icon(Icons.bar_chart_rounded, size: 56, color: Color(0xFFCBD5E1)),
+          SizedBox(height: 12),
+          Text(
+            'No recent trades found',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF475569)),
           ),
+          SizedBox(height: 4),
+          Text(
+            'Reports will populate as signals arrive.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDatePicker(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedDateRange = 'CUSTOM');
+    }
+  }
+
+  void _showAddTradeDialog(BuildContext context, TradingProvider provider) {
+    final symbolCtrl = TextEditingController(text: 'BTCUSDT');
+    final priceCtrl = TextEditingController(text: '81280.0');
+    String action = 'BUY';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Add Manual Signal/Trade', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: symbolCtrl,
+              decoration: const InputDecoration(labelText: 'Symbol (e.g. BTCUSDT, NIFTY)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: priceCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Price'),
+            ),
+            const SizedBox(height: 10),
+            DropdownButton<String>(
+              value: action,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: 'BUY', child: Text('BUY Signal')),
+                DropdownMenuItem(value: 'SELL', child: Text('SELL Signal')),
+              ],
+              onChanged: (v) {
+                if (v != null) action = v;
+              },
+            ),
+          ],
         ),
-      ],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1D61E7)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.refreshAll();
+            },
+            child: const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -632,15 +1002,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text('Delete $symbol Record?'),
         content: const Text('This will permanently delete this trade report pair from history.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -659,32 +1029,57 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
     }
   }
+}
 
-  Future<void> _confirmClearAll(BuildContext context, TradingProvider provider) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text('Clear All Trade Reports?'),
-        content: const Text('This will permanently delete all trades and report history. This action cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Clear All History', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+/// CustomPainter to draw smooth green sparkline wave graph in Total P&L Card
+class _SparklinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    final paintLine = Paint()
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF10B981);
 
-    if (confirm == true) {
-      await provider.clearAllTrades();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All trade reports cleared successfully.')),
-        );
-      }
+    final points = [
+      Offset(0, size.height * 0.8),
+      Offset(size.width * 0.2, size.height * 0.65),
+      Offset(size.width * 0.4, size.height * 0.75),
+      Offset(size.width * 0.6, size.height * 0.35),
+      Offset(size.width * 0.8, size.height * 0.45),
+      Offset(size.width, size.height * 0.15),
+    ];
+
+    path.moveTo(points[0].dx, points[0].dy);
+    for (int i = 0; i < points.length - 1; i++) {
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      final controlPoint1 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p1.dy);
+      final controlPoint2 = Offset(p1.dx + (p2.dx - p1.dx) / 2, p2.dy);
+      path.cubicTo(controlPoint1.dx, controlPoint1.dy, controlPoint2.dx, controlPoint2.dy, p2.dx, p2.dy);
     }
+
+    // Fill Gradient under curve
+    final fillPath = Path.from(path);
+    fillPath.lineTo(size.width, size.height);
+    fillPath.lineTo(0, size.height);
+    fillPath.close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFF10B981).withValues(alpha: 0.3),
+          const Color(0xFF10B981).withValues(alpha: 0.0),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paintLine);
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
