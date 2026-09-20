@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/signal_alert_overlay.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -113,26 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           );
                         }
                       },
-                      child: const Text('SAVE & TEST CONNECTION', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.buyGreen,
-                        side: const BorderSide(color: AppTheme.buyGreen, width: 1.5),
-                      ),
-                      icon: const Icon(Icons.notifications_active_rounded, size: 18),
-                      label: const Text('TEST FULL-SCREEN SIGNAL ALERT (5s)', style: TextStyle(fontWeight: FontWeight.bold)),
-                      onPressed: () {
-                        SignalAlertOverlay.show(context, {
-                          'symbol': 'BANKNIFTY26SEPFUT',
-                          'action': 'BUY',
-                          'price': 51250.00,
-                        });
-                      },
+                      child: const Text('SAVE & TEST CONNECTION', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ),
                 ],

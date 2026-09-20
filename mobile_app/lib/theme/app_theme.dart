@@ -7,8 +7,8 @@ class AppTheme {
   static const Color border = Color(0xFFEAEAEE);
   static const Color surfaceBorder = Color(0xFFE2E8F0);
 
-  static const Color primary = Color(0xFF16A34A); // Emerald Green
-  static const Color buyGreen = Color(0xFF16A34A); // Emerald Green
+  static const Color primary = Color(0xFF0F172A); // Black / Deep Slate
+  static const Color buyGreen = Color(0xFF16A34A); // Green
   static const Color sellRed = Color(0xFFDC2626); // Red
   static const Color warningOrange = Color(0xFFD97706); // Amber
 
