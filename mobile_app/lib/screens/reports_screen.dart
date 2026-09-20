@@ -190,13 +190,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FC),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF1D61E7),
-        elevation: 6,
-        icon: const Icon(Icons.add, color: Colors.white, size: 22),
-        label: const Text('Add Trade', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        onPressed: () => _showAddTradeDialog(context, provider),
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => provider.refreshAll(),
@@ -346,7 +339,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               else
                 ...filteredReports.map((report) => _buildTradeCard(context, provider, report)),
 
-              const SizedBox(height: 80), // bottom padding for FAB
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -730,58 +723,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (picked != null) {
       setState(() => _selectedCustomDate = picked);
     }
-  }
-
-  void _showAddTradeDialog(BuildContext context, TradingProvider provider) {
-    final symbolCtrl = TextEditingController(text: 'BTCUSDT');
-    final priceCtrl = TextEditingController(text: '81280.0');
-    String action = 'BUY';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Add Manual Signal/Trade', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: symbolCtrl,
-              decoration: const InputDecoration(labelText: 'Symbol (e.g. BTCUSDT, NIFTY)'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Price'),
-            ),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              value: action,
-              isExpanded: true,
-              items: const [
-                DropdownMenuItem(value: 'BUY', child: Text('BUY Signal')),
-                DropdownMenuItem(value: 'SELL', child: Text('SELL Signal')),
-              ],
-              onChanged: (v) {
-                if (v != null) action = v;
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1D61E7)),
-            onPressed: () {
-              Navigator.pop(ctx);
-              provider.refreshAll();
-            },
-            child: const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _confirmDeleteTrade(BuildContext context, TradingProvider provider, Map<String, dynamic> report) async {
