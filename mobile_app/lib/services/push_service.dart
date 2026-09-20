@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'notification_service.dart';
 
 @pragma('vm:entry-point')
@@ -32,7 +33,31 @@ class PushService {
 
   static Future<void> init(String backendUrl) async {
     try {
-      await Firebase.initializeApp();
+      if (Firebase.apps.isEmpty) {
+        try {
+          await Firebase.initializeApp();
+        } catch (_) {
+          // If google-services.json is not placed in android/app/, check for dotenv fallback credentials
+          final apiKey = dotenv.env['FIREBASE_API_KEY'];
+          final appId = dotenv.env['FIREBASE_APP_ID'];
+          final messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'];
+          final projectId = dotenv.env['FIREBASE_PROJECT_ID'];
+
+          if (apiKey != null && appId != null && messagingSenderId != null && projectId != null) {
+            await Firebase.initializeApp(
+              options: FirebaseOptions(
+                apiKey: apiKey,
+                appId: appId,
+                messagingSenderId: messagingSenderId,
+                projectId: projectId,
+              ),
+            );
+          } else {
+            rethrow;
+          }
+        }
+      }
+
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       FirebaseMessaging messaging = FirebaseMessaging.instance;
