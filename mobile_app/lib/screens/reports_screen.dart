@@ -476,21 +476,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildTradeCard(BuildContext context, TradingProvider provider, Map<String, dynamic> report) {
     final symbol = (report['symbol'] ?? 'UNKNOWN').toString();
     final entryAction = (report['entryAction'] ?? 'BUY').toString().toUpperCase();
-    final isBuy = entryAction == 'BUY';
+    final isBuyEntry = entryAction == 'BUY';
     final points = report['points'] as double?;
     final isClosed = points != null;
     final isWin = isClosed && points > 0;
     final isLoss = isClosed && points < 0;
 
-    final entryPrice = report['entryPrice'] != null
-        ? NumberFormat('#,##0.0#').format(report['entryPrice'])
-        : '--';
-    final exitPrice = report['exitPrice'] != null
-        ? NumberFormat('#,##0.0#').format(report['exitPrice'])
-        : '--';
+    // BUY Details (whether BUY came first or second)
+    final dynamic rawBuyPrice = isBuyEntry ? report['entryPrice'] : report['exitPrice'];
+    final dynamic rawBuyTime = isBuyEntry ? report['entryTime'] : report['exitTime'];
+    final buyPriceStr = rawBuyPrice != null ? NumberFormat('#,##0.0#').format(rawBuyPrice) : '--';
+    final buyTimeStr = _formatTime(rawBuyTime);
 
-    final entryTimeStr = _formatTime(report['entryTime']);
-    final exitTimeStr = isClosed ? _formatTime(report['exitTime']) : 'Open';
+    // SELL Details (whether SELL came first or second)
+    final dynamic rawSellPrice = isBuyEntry ? report['exitPrice'] : report['entryPrice'];
+    final dynamic rawSellTime = isBuyEntry ? report['exitTime'] : report['entryTime'];
+    final sellPriceStr = rawSellPrice != null ? NumberFormat('#,##0.0#').format(rawSellPrice) : '--';
+    final sellTimeStr = _formatTime(rawSellTime);
+
+    // Primary Container Time (Time of initial entry)
+    final primaryTimeStr = _formatTime(report['entryTime']);
 
     // Status Badge colors
     Color statusBg = const Color(0xFFFEF3C7);
@@ -530,7 +535,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Top Row: Avatar + Symbol + Action Tag + Delete Menu
+            // Top Row: Avatar + Symbol + Action Tag (CALL / PUT) + Status Badge + Delete Menu
             Row(
               children: [
                 // Asset Icon
@@ -538,12 +543,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: isBuy ? const Color(0xFFEFF6FF) : const Color(0xFFFEF2F2),
+                    color: isBuyEntry ? const Color(0xFFEFF6FF) : const Color(0xFFF3E8FF),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isBuy ? Icons.currency_bitcoin_rounded : Icons.show_chart_rounded,
-                    color: isBuy ? const Color(0xFF2563EB) : const Color(0xFFDC2626),
+                    isBuyEntry ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                    color: isBuyEntry ? const Color(0xFF2563EB) : const Color(0xFF7E22CE),
                     size: 20,
                   ),
                 ),
@@ -569,15 +574,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: isBuy ? const Color(0xFFDBEAFE) : const Color(0xFFF3E8FF),
+                              color: isBuyEntry ? const Color(0xFFDBEAFE) : const Color(0xFFF3E8FF),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              isBuy ? 'CALL' : 'PUT',
+                              isBuyEntry ? 'CALL' : 'PUT',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
-                                color: isBuy ? const Color(0xFF1E40AF) : const Color(0xFF7E22CE),
+                                color: isBuyEntry ? const Color(0xFF1E40AF) : const Color(0xFF7E22CE),
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -586,7 +591,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        entryTimeStr,
+                        primaryTimeStr,
                         style: const TextStyle(
                           fontSize: 11,
                           color: Color(0xFF94A3B8),
@@ -645,17 +650,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
               child: Divider(height: 1, color: Color(0xFFF1F5F9)),
             ),
 
-            // Middle Row: Entry, Exit, P&L Points
+            // Middle Row: BUY (Price + Time), SELL (Price + Time), Result (Pts + Status)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _metricColumn('Entry Price', entryPrice, CrossAxisAlignment.start),
-                _metricColumn('Exit Price', exitPrice, CrossAxisAlignment.center),
+                _metricColumn(
+                  'BUY',
+                  buyPriceStr,
+                  buyTimeStr.isNotEmpty ? buyTimeStr : 'Pending',
+                  CrossAxisAlignment.start,
+                  labelColor: const Color(0xFF16A34A),
+                ),
+                _metricColumn(
+                  'SELL',
+                  sellPriceStr,
+                  sellTimeStr.isNotEmpty ? sellTimeStr : 'Pending',
+                  CrossAxisAlignment.center,
+                  labelColor: const Color(0xFFDC2626),
+                ),
                 _metricColumn(
                   'Result (Pts)',
                   points != null
                       ? '${points >= 0 ? '+' : ''}${points.toStringAsFixed(1)}'
                       : 'Pending',
+                  isClosed ? statusLabel : 'In Progress',
                   CrossAxisAlignment.end,
                   valueColor: points != null
                       ? (points > 0 ? const Color(0xFF16A34A) : (points < 0 ? const Color(0xFFDC2626) : const Color(0xFF475569)))
@@ -663,33 +681,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
               ],
             ),
-
-            if (isClosed) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Exit: $exitTimeStr',
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _metricColumn(String label, String value, CrossAxisAlignment alignment, {Color? valueColor}) {
+  Widget _metricColumn(
+    String label,
+    String value,
+    String timeText,
+    CrossAxisAlignment alignment, {
+    Color? labelColor,
+    Color? valueColor,
+  }) {
     return Column(
       crossAxisAlignment: alignment,
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w800,
+            color: labelColor ?? const Color(0xFF94A3B8),
           ),
         ),
         const SizedBox(height: 3),
@@ -699,6 +713,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
             fontSize: 14,
             fontWeight: FontWeight.w800,
             color: valueColor ?? const Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          timeText,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF94A3B8),
           ),
         ),
       ],
