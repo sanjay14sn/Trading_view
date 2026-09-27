@@ -157,7 +157,7 @@ const getDashboard = async (req, res) => {
 };
 
 const getSignals = async (req, res) => {
-    res.json(isDbConnected() ? await Signal.find().sort({ receivedAt: -1 }).limit(50) : mockStore.signals.slice(-50).reverse());
+    res.json(isDbConnected() ? await Signal.find().sort({ receivedAt: -1 }) : [...mockStore.signals].reverse());
 };
 
 /**
