@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/trading_provider.dart';
+import '../services/report_export_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -217,6 +218,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download_rounded, size: 20, color: Color(0xFF0F172A)),
+            tooltip: 'Export Report',
+            onPressed: () => _showExportBottomSheet(context, filteredReports, allReports),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20, color: Color(0xFF334155)),
             onPressed: () => provider.refreshAll(),
@@ -728,6 +734,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final exitSignalId = report['exitSignalId']?.toString();
     final tradeId = report['tradeId']?.toString();
 
+    final messenger = ScaffoldMessenger.of(context);
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -752,7 +760,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         tradeId: tradeId,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('Trade report record deleted successfully.')),
         );
       }
@@ -1027,6 +1035,277 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showExportBottomSheet(
+    BuildContext context,
+    List<Map<String, dynamic>> filteredReports,
+    List<Map<String, dynamic>> allReports,
+  ) {
+    bool exportAll = false;
+    String exportFormat = 'PDF'; // 'PDF' or 'CSV'
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final activeList = exportAll ? allReports : filteredReports;
+            final filterDesc = exportAll
+                ? 'All Trade Records (${allReports.length})'
+                : '${_selectedSymbol == 'ALL' ? 'All Pairs' : _selectedSymbol} • $_selectedOutcome (${filteredReports.length} records)';
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag Handle
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.download_rounded, size: 20, color: Color(0xFF0F172A)),
+                      ),
+                      const SizedBox(width: 12),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Export Trade Report',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            'Generate PDF statement or CSV spreadsheet',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => Navigator.pop(modalCtx),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Format Picker (PDF vs CSV)
+                  const Text(
+                    'EXPORT FORMAT',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _exportFormatTile(
+                          format: 'PDF',
+                          title: 'PDF Report',
+                          subtitle: 'Printable statement',
+                          icon: Icons.picture_as_pdf_rounded,
+                          iconColor: const Color(0xFFDC2626),
+                          isSelected: exportFormat == 'PDF',
+                          onTap: () => setModalState(() => exportFormat = 'PDF'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _exportFormatTile(
+                          format: 'CSV',
+                          title: 'CSV Data',
+                          subtitle: 'Excel / Spreadsheet',
+                          icon: Icons.table_chart_rounded,
+                          iconColor: const Color(0xFF16A34A),
+                          isSelected: exportFormat == 'CSV',
+                          onTap: () => setModalState(() => exportFormat = 'CSV'),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Scope Picker (Filtered vs All)
+                  const Text(
+                    'DATA SCOPE',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Color(0xFF94A3B8), letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      children: [
+                        RadioListTile<bool>(
+                          value: false,
+                          groupValue: exportAll,
+                          activeColor: const Color(0xFF0F172A),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          title: const Text('Current Active Filter', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                          subtitle: Text(filterDesc, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          onChanged: (val) {
+                            if (val != null) setModalState(() => exportAll = val);
+                          },
+                        ),
+                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                        RadioListTile<bool>(
+                          value: true,
+                          groupValue: exportAll,
+                          activeColor: const Color(0xFF0F172A),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          title: const Text('All Historical Reports', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                          subtitle: Text('Full database history (${allReports.length} trade pairs)', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          onChanged: (val) {
+                            if (val != null) setModalState(() => exportAll = val);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Download Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F172A),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: Icon(
+                        exportFormat == 'PDF' ? Icons.picture_as_pdf_rounded : Icons.table_chart_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        'Generate & Share $exportFormat (${activeList.length} trades)',
+                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: activeList.isEmpty
+                          ? null
+                          : () async {
+                              Navigator.pop(modalCtx);
+                              final label = exportAll
+                                  ? 'All Historical Trades'
+                                  : '${_selectedSymbol == 'ALL' ? 'All Pairs' : _selectedSymbol} – $_selectedOutcome';
+
+                              try {
+                                if (exportFormat == 'PDF') {
+                                  await ReportExportService.exportPdf(reports: activeList, label: label);
+                                } else {
+                                  await ReportExportService.exportCsv(reports: activeList, label: label);
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed to export report: $e')),
+                                  );
+                                }
+                              }
+                            },
+                    ),
+                  ),
+
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _exportFormatTile({
+    required String format,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF1F5F9) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
