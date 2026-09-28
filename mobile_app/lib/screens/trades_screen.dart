@@ -43,8 +43,15 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
     return DateFormat('dd MMM yyyy, hh:mm:ss a').format(dt);
   }
 
+  static String _formatCurrency(dynamic val) {
+    if (val == null) return '$0.00';
+    final numVal = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    final formatter = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+    return formatter.format(numVal);
+  }
+
   void _showTradeDetailsBottomSheet(BuildContext context, TradingProvider provider, dynamic trade) {
-    final symbol = (trade['symbol'] ?? 'N/A').toString();
+    final symbol = (trade['symbol'] ?? 'BTCUSD').toString();
     final action = (trade['action'] ?? 'BUY').toString().toUpperCase();
     final isBuy = action == 'BUY';
     final status = (trade['status'] ?? 'PENDING').toString();
@@ -52,11 +59,10 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
     final entryPrice = trade['entryPrice'] ?? 0;
     final exitPrice = trade['exitPrice'];
     final pnl = trade['pnl'];
-    final quantity = trade['quantity'] ?? 1;
+    final quantity = trade['quantity'] ?? 0.01;
+    final ticket = trade['mt5Ticket'] ?? trade['ticket'];
     final tradeId = (trade['_id'] ?? trade['id'] ?? 'N/A').toString();
     final timestamp = trade['receivedAt'] ?? trade['createdAt'] ?? trade['timestamp'];
-
-    final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
     showModalBottomSheet(
       context: context,
@@ -130,7 +136,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
 
               const SizedBox(height: 16),
 
-              // P&L or Status Highlight Banner Card
+              // P&L Highlight Banner Card
               if (pnl != null) ...[
                 Builder(
                   builder: (context) {
@@ -153,7 +159,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'TOTAL P&L',
+                                'REALIZED P&L',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
@@ -162,7 +168,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                formatter.format(pnl),
+                                _formatCurrency(pnl),
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w900,
@@ -194,15 +200,19 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
                 ),
                 child: Column(
                   children: [
-                    _detailRow('Entry Price', '₹$entryPrice', icon: Icons.login_rounded),
+                    _detailRow('Broker Entry Price', _formatCurrency(entryPrice), icon: Icons.login_rounded),
                     const Divider(height: 16, color: Color(0xFFE2E8F0)),
-                    _detailRow('Exit Price', exitPrice != null ? '₹$exitPrice' : 'OPEN / ACTIVE', icon: Icons.logout_rounded),
+                    _detailRow('Broker Exit Price', exitPrice != null ? _formatCurrency(exitPrice) : 'OPEN / ACTIVE', icon: Icons.logout_rounded),
                     const Divider(height: 16, color: Color(0xFFE2E8F0)),
-                    _detailRow('Quantity', '$quantity Units', icon: Icons.numbers_rounded),
+                    _detailRow('Lot Size / Volume', '$quantity lot', icon: Icons.numbers_rounded),
                     const Divider(height: 16, color: Color(0xFFE2E8F0)),
-                    _detailRow('Received Time', _formatTime(timestamp), icon: Icons.schedule_rounded),
+                    if (ticket != null) ...[
+                      _detailRow('MT5 Ticket', '#$ticket', icon: Icons.confirmation_number_rounded),
+                      const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                    ],
+                    _detailRow('Timestamp', _formatTime(timestamp), icon: Icons.schedule_rounded),
                     const Divider(height: 16, color: Color(0xFFE2E8F0)),
-                    _detailRow('Signal ID', tradeId, icon: Icons.fingerprint_rounded, isId: true),
+                    _detailRow('Record ID', tradeId, icon: Icons.fingerprint_rounded, isId: true),
                   ],
                 ),
               ),
@@ -334,13 +344,228 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildTradeList(context, provider, filter: null),
-          _buildTradeList(context, provider, filter: 'OPEN'),
-          _buildTradeList(context, provider, filter: 'CLOSED'),
-          _buildTradeList(context, provider, filter: 'FAILED'),
+          // 📍 CURRENT POSITION HERO CARD AT TOP OF SCREEN
+          _buildCurrentPositionHeroCard(context, provider),
+
+          // TAB BAR CONTENT LIST
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildTradeList(context, provider, filter: null),
+                _buildTradeList(context, provider, filter: 'OPEN'),
+                _buildTradeList(context, provider, filter: 'CLOSED'),
+                _buildTradeList(context, provider, filter: 'FAILED'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📍 Top Hero Card: Current Position held by Automated Reversal Engine
+  Widget _buildCurrentPositionHeroCard(BuildContext context, TradingProvider provider) {
+    dynamic activeTrade;
+    try {
+      activeTrade = provider.trades.firstWhere(
+        (t) => t['status'] == 'OPEN' || t['status'] == 'PENDING' || t['status'] == 'QUEUED',
+        orElse: () => null,
+      );
+    } catch (_) {
+      activeTrade = null;
+    }
+
+    final hasActive = activeTrade != null;
+    final symbol = hasActive ? (activeTrade['symbol'] ?? 'BTCUSD').toString() : 'BTCUSD';
+    final action = hasActive ? (activeTrade['action'] ?? 'BUY').toString().toUpperCase() : '';
+    final isBuy = action == 'BUY';
+    final lotSize = hasActive ? (activeTrade['quantity'] ?? 0.01) : 0.01;
+    final entryPrice = hasActive ? (activeTrade['entryPrice'] ?? 0) : 0;
+    final ticket = hasActive ? (activeTrade['mt5Ticket'] ?? activeTrade['ticket']) : null;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(14.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: hasActive
+              ? (isBuy ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5))
+              : const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: hasActive ? (isBuy ? const Color(0xFF10B981) : const Color(0xFFEF4444)) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'CURRENT POSITION',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF64748B),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              if (hasActive)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'MT5 TICKET ${ticket != null ? "#$ticket" : "ACTIVE"}',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          if (hasActive) ...[
+            Row(
+              children: [
+                // Direction Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isBuy ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isBuy ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                        size: 16,
+                        color: isBuy ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        action,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: isBuy ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      symbol,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                    Text(
+                      '$lotSize lot',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'BROKER ENTRY',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatCurrency(entryPrice),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // Manual Exit Button
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFEF2F2),
+                  foregroundColor: const Color(0xFFB91C1C),
+                  elevation: 0,
+                  side: const BorderSide(color: Color(0xFFFECDD3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.stop_circle_rounded, size: 16, color: Color(0xFFB91C1C)),
+                label: const Text('MANUAL EXIT POSITION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogCtx) => AlertDialog(
+                      backgroundColor: Colors.white,
+                      title: Text('Close $symbol Position?'),
+                      content: const Text('This will execute a market order to close this active trade instantly.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancel')),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.sellRed),
+                          onPressed: () => Navigator.pop(dialogCtx, true),
+                          child: const Text('Confirm Exit', style: TextStyle(color: Colors.white)),
+                        )
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    await provider.closeTradeManually(activeTrade['_id']);
+                  }
+                },
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: const [
+                Icon(Icons.check_circle_outline_rounded, size: 20, color: Color(0xFF94A3B8)),
+                SizedBox(width: 8),
+                Text(
+                  'NO ACTIVE POSITION (Awaiting Signal)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -362,7 +587,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
-            SizedBox(height: 100),
+            SizedBox(height: 60),
             Center(
               child: Text('No trades found for this filter', style: TextStyle(color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
             ),
@@ -374,7 +599,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
     return RefreshIndicator(
       onRefresh: () => provider.refreshAll(),
       child: ListView.builder(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         itemCount: filtered.length,
         itemBuilder: (context, index) {
           final trade = filtered[index];
@@ -385,14 +610,13 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
   }
 
   Widget _buildTradeCard(BuildContext context, TradingProvider provider, dynamic trade) {
-    final symbol = trade['symbol'] ?? 'N/A';
+    final symbol = trade['symbol'] ?? 'BTCUSD';
     final action = (trade['action'] ?? 'BUY').toString().toUpperCase();
     final isBuy = action == 'BUY';
     final status = (trade['status'] ?? 'PENDING').toString();
     final entryPrice = trade['entryPrice'] ?? 0;
+    final exitPrice = trade['exitPrice'];
     final pnl = trade['pnl'];
-
-    final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
     return GestureDetector(
       onTap: () => _showTradeDetailsBottomSheet(context, provider, trade),
@@ -452,27 +676,27 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Entry Price', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                    const Text('Broker Entry', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
                     const SizedBox(height: 2),
-                    Text('₹$entryPrice', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                    Text(_formatCurrency(entryPrice), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Quantity', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                    const Text('Broker Exit', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
                     const SizedBox(height: 2),
-                    Text('${trade['quantity']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                    Text(exitPrice != null ? _formatCurrency(exitPrice) : 'OPEN', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: exitPrice != null ? const Color(0xFF0F172A) : const Color(0xFF10B981))),
                   ],
                 ),
                 if (pnl != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('P&L', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+                      const Text('Realized P&L', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
                       const SizedBox(height: 2),
                       Text(
-                        formatter.format(pnl),
+                        _formatCurrency(pnl),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -492,6 +716,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
   Widget _buildStatusTag(String status) {
     Color bg = const Color(0xFFF1F5F9);
     Color fg = const Color(0xFF475569);
+    String label = status;
 
     if (status == 'OPEN' || status == 'QUEUED') {
       bg = const Color(0xFFDCFCE7);
@@ -499,16 +724,20 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
     } else if (status == 'FAILED') {
       bg = const Color(0xFFFEE2E2);
       fg = const Color(0xFFB91C1C);
+    } else if (status == 'REVERSAL_EXIT') {
+      bg = const Color(0xFFE0F2FE);
+      fg = const Color(0xFF0369A1);
+      label = 'REVERSAL EXIT';
     } else if (status.contains('HIT') || status == 'CLOSED') {
-      bg = const Color(0xFFDCFCE7);
-      fg = const Color(0xFF15803D);
+      bg = const Color(0xFFF1F5F9);
+      fg = const Color(0xFF334155);
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
       child: Text(
-        status,
+        label,
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: fg),
       ),
     );
