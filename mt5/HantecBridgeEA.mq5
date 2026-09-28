@@ -163,6 +163,7 @@ void ProcessOrdersJson(string json)
 
       symbol = NormalizeSymbol(symbol);
       if(volume <= 0)  volume = 1.0;
+      if(symbol == "BTC") volume = 1.0;
 
       if(type == "OPEN")
       {
@@ -185,6 +186,7 @@ void ProcessOrdersJson(string json)
 void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ulong closeTicket, string symbol, string action, double volume)
 {
    symbol = NormalizeSymbol(symbol);
+   if(symbol == "BTC") volume = 1.0;
    trade.SetTypeFillingBySymbol(symbol);
    Print("🔄 REVERSAL SIGNAL: Closing Ticket #", closeTicket, " and Opening ", action, " ", volume, " ", symbol);
 
@@ -222,6 +224,7 @@ void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ul
 void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string action, double volume, double sl, double tp)
 {
    symbol = NormalizeSymbol(symbol);
+   if(symbol == "BTC") volume = 1.0;
    trade.SetTypeFillingBySymbol(symbol);
    Print("⚡ Executing Market ", action, " Order for ", symbol, " Volume: ", volume, " SL: ", sl, " TP: ", tp);
 
@@ -229,11 +232,13 @@ void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string acti
    if(action == "BUY")
    {
       double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+      if(symbol == "BTC") volume = 1.0;
       success = trade.Buy(volume, symbol, ask, sl, tp, "TV_WEBHOOK_" + tradeId);
    }
    else if(action == "SELL")
    {
       double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
+      if(symbol == "BTC") volume = 1.0;
       success = trade.Sell(volume, symbol, bid, sl, tp, "TV_WEBHOOK_" + tradeId);
    }
 

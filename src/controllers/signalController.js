@@ -75,7 +75,8 @@ const postSignal = async (req, res) => {
         let trade = null;
         if (config.takePositions) {
             const mt5OrderManager = require('../services/mt5OrderManager');
-            const tradeQuantity = rawSignal.quantity || config.mt5.defaultLotSize || 0.01;
+            let tradeQuantity = rawSignal.quantity || config.mt5.defaultLotSize || 1.0;
+            if (futuresSymbol === 'BTC') tradeQuantity = 1.0;
 
             // Check for existing active open trade for this symbol
             const activeTrade = isDbConnected()

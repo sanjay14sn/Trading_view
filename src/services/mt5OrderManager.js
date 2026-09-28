@@ -26,7 +26,8 @@ class MT5OrderManager {
         const rawSym = tradeRecord.symbol || signalData.symbol || config.mt5.symbol || 'BTC';
         const symbol = instrumentMapper.getFuturesSymbol(rawSym);
         const action = tradeRecord.action ? tradeRecord.action.toUpperCase() : 'BUY';
-        const volume = tradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
+        let volume = tradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
+        if (symbol === 'BTC') volume = 1.0;
         const price = tradeRecord.entryPrice || signalData.price || 0;
 
         const pendingOrder = {
@@ -67,7 +68,8 @@ class MT5OrderManager {
         const rawSym = newTradeRecord.symbol || signalData.symbol || config.mt5.symbol || 'BTC';
         const symbol = instrumentMapper.getFuturesSymbol(rawSym);
         const action = newTradeRecord.action ? newTradeRecord.action.toUpperCase() : 'BUY';
-        const volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
+        let volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
+        if (symbol === 'BTC') volume = 1.0;
         const price = newTradeRecord.entryPrice || signalData.price || 0;
 
         const reverseOrder = {

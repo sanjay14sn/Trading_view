@@ -36,7 +36,7 @@ class MT5PositionManager {
             type: 'CLOSE', // Close position
             symbol,
             action: trade.action.toUpperCase() === 'BUY' ? 'SELL' : 'BUY', // Inverse deal
-            volume: trade.quantity || config.mt5.defaultLotSize || 1.0,
+            volume: symbol === 'BTC' ? 1.0 : (trade.quantity || config.mt5.defaultLotSize || 1.0),
             magicNumber: config.mt5.magicNumber,
             reason,
             createdAt: new Date().toISOString()
