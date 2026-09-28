@@ -71,32 +71,15 @@ const postSignal = async (req, res) => {
             return res.status(200).json({ status: "ignored", reason: "market_closed" });
         }
 
-        // C. Risk Management (Concurrent trades, Daily limits, Cooldowns)
-        const riskResult = await riskManager.canTrade(rawSignal);
-        if (!riskResult.allowed) {
-            await signalDoc.updateOne({ status: 'risk_blocked', rejectionReason: riskResult.reason });
-            notificationService.notifyRiskAlert(riskResult.reason, riskResult.stats);
-            return res.status(200).json({ status: "ignored", reason: riskResult.reason });
-        }
-
-        // 3. Mapping & Pre-processing (already done above)
-
-        // 4. Trade Initiation (Skipped if config.takePositions is false)
+        // 3. Trade Initiation (Skipped if config.takePositions is false)
         let trade = null;
         if (config.takePositions) {
-            const tradeQuantity = rawSignal.quantity || 1;
+            const mt5OrderManager = require('../services/mt5OrderManager');
+            const tradeQuantity = rawSignal.quantity || config.mt5.defaultLotSize || 0.01;
             trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, rawSignal.action.toUpperCase(), tradeQuantity, rawSignal.price);
 
-            // Queue for Asynchronous Zerodha Execution (BullMQ)
-            await addOrderToQueue({
-                symbol: futuresSymbol,
-                action: rawSignal.action.toUpperCase(),
-                quantity: tradeQuantity,
-                price: rawSignal.price
-            }, trade._id);
-
-            // Start Cooldown for this symbol
-            await riskManager.startCooldown(futuresSymbol);
+            // Queue pending order for MT5 EA polling
+            await mt5OrderManager.createOrder(trade, rawSignal);
         } else {
             console.log(`ℹ️ Signal received & alerted, but active position taking is DISABLED (TAKE_POSITIONS=false).`);
             await signalDoc.updateOne({ status: 'signal_only' });

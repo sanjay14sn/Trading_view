@@ -19,21 +19,19 @@ connectDB();
 const io = socketService.init(server);
 app.set('io', io);
 
-// 3. Initialize Background Workers (BullMQ)
-setupZerodhaWorker(io);
-
-// 4. Initialize Cron Jobs
+// 3. Initialize Cron Jobs
 setupCronJobs();
 
-// 5. Start SL/TP Monitoring Service
+// 4. Start SL/TP Monitoring Service
 slWatcher.start(io);
 
 // 🚀 Start the server
 server.listen(PORT, () => {
-    console.log(`\n✅ TradingView Backend (${config.env}) is now LIVE`);
+    console.log(`\n✅ TradingView MT5 Hantec Backend (${config.env}) is now LIVE`);
     console.log(`🌐 http://localhost:${PORT}`);
-    console.log(`📡 Webhook: http://localhost:${PORT}/tradingview-signal`);
-    console.log(`👁️  SL Watcher active\n`);
+    console.log(`📡 Signal Webhook: http://localhost:${PORT}/tradingview-signal`);
+    console.log(`🤖 MT5 EA Bridge: http://localhost:${PORT}/api/mt5/pending-orders`);
+    console.log(`👁️  MT5 Position Watcher active\n`);
 
     // Start continuous uptime keep-alive watchdog
     keepAliveService.start();

@@ -4,13 +4,17 @@
  */
 
 const mapping = {
-    'NIFTY': 'NIFTY FUT',
-    'BANKNIFTY': 'BANKNIFTY FUT',
-    'FINNIFTY': 'FINNIFTY FUT'
+    'BTC': 'BTCUSD',
+    'BTCUSD': 'BTCUSD',
+    'BTCUSDT': 'BTCUSD',
+    'XAUUSD': 'XAUUSD',
+    'GOLD': 'XAUUSD'
 };
 
 const getFuturesSymbol = (spotSymbol) => {
-    return mapping[spotSymbol.toUpperCase()] || spotSymbol;
+    if (!spotSymbol) return 'BTCUSD';
+    const clean = spotSymbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return mapping[clean] || clean || 'BTCUSD';
 };
 
 module.exports = { getFuturesSymbol };

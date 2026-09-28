@@ -122,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 16),
 
-          // Zerodha Broker Setup Card
+          // MT5 Hantec Broker Setup Card
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -131,30 +131,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.account_balance, color: AppTheme.buyGreen),
+                      Icon(Icons.currency_bitcoin, color: AppTheme.buyGreen),
                       SizedBox(width: 8),
-                      Text('Zerodha Kite Broker Connection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('MT5 Hantec Bridge (BTCUSD)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Daily access token authentication is managed automatically via session manager.',
+                    'MT5 EA (HantecBridgeEA.mq5) polls pending orders & posts execution results to the backend.',
                     style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.buyGreen,
-                      side: const BorderSide(color: AppTheme.buyGreen),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.background,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    icon: const Icon(Icons.open_in_new, size: 16),
-                    label: const Text('Login to Zerodha Kite'),
-                    onPressed: () {
-                      final url = '${provider.serverUrl}/api/zerodha/auth/login';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Open in browser: $url')),
-                      );
-                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Target Symbol: BTCUSD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text('EA Polling Endpoint: ${provider.serverUrl}/api/mt5/pending-orders', style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -172,19 +173,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: const [
                   Row(
                     children: [
-                      Icon(Icons.shield, color: AppTheme.warningOrange),
+                      Icon(Icons.flash_on, color: AppTheme.buyGreen),
                       SizedBox(width: 8),
-                      Text('Active Risk Rules', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('Risk Management Mode', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   SizedBox(height: 12),
-                  Text('• Max Concurrent Positions: 3', style: TextStyle(fontSize: 13)),
+                  Text('⚡ Risk Management Disabled (Direct Pass-Through)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.buyGreen)),
                   SizedBox(height: 4),
-                  Text('• Max Daily Loss Limit: ₹5,000', style: TextStyle(fontSize: 13)),
+                  Text('• Every valid signal is sent directly to MT5 EA', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                   SizedBox(height: 4),
-                  Text('• Symbol Cooldown: 30 Seconds', style: TextStyle(fontSize: 13)),
-                  SizedBox(height: 4),
-                  Text('• EOD Auto Square-off: 3:20 PM IST', style: TextStyle(fontSize: 13)),
+                  Text('• No daily trade count or loss caps enforced', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                 ],
               ),
             ),

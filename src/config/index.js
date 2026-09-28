@@ -14,9 +14,11 @@ const config = {
         url: process.env.REDIS_URL || 'redis://localhost:6379'
     },
 
-    zerodha: {
-        apiKey: process.env.ZERODHA_API_KEY,
-        apiSecret: process.env.ZERODHA_API_SECRET
+    mt5: {
+        symbol: process.env.MT5_SYMBOL || 'BTCUSD',
+        magicNumber: parseInt(process.env.MT5_MAGIC_NUMBER, 10) || 123456,
+        eaToken: process.env.MT5_EA_TOKEN || 'hantec_mt5_secret',
+        defaultLotSize: parseFloat(process.env.MT5_DEFAULT_LOT) || 0.01
     },
 
     risk: {
@@ -33,9 +35,7 @@ const config = {
 
 // Simple validation
 const requiredKeys = [
-    'webhookSecret',
-    'zerodha.apiKey',
-    'zerodha.apiSecret'
+    'webhookSecret'
 ];
 
 if (config.env === 'production') {

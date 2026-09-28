@@ -3,7 +3,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const config = require('./config');
 const signalRoutes = require('./routes/signalRoutes');
-const zerodhaRoutes = require('./routes/zerodhaRoutes');
+const mt5Routes = require('./routes/mt5Routes');
 const errorHandler = require('./middlewares/errorMiddleware');
 const { apiLimiter } = require('./middlewares/rateLimitMiddleware');
 
@@ -34,7 +34,7 @@ app.use('/', apiLimiter);
 
 // 🚀 Routes
 app.use('/', signalRoutes);
-app.use('/api/zerodha', zerodhaRoutes);
+app.use('/api/mt5', mt5Routes);
 
 // 🛑 Global Error Handler (Must be last)
 app.use(errorHandler);

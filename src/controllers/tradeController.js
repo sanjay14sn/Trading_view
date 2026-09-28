@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Trade = require('../models/Trade');
 const mockStore = require('../utils/mockStore');
 const tradeLifecycle = require('../services/tradeLifecycleManager');
-const zerodhaEngine = require('../services/zerodhaExecutionEngine');
+const mt5PositionManager = require('../services/mt5PositionManager');
 const { logError } = require('../utils/logger');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -57,19 +57,17 @@ const tradeController = {
             // In Mock mode, we just simulate closing
             if (!isDbConnected()) {
                 trade.status = 'CLOSED';
-                trade.exitPrice = trade.entryPrice + 10; // dummy win
+                trade.exitPrice = (trade.entryPrice || 65000) + 100;
                 trade.exitTime = new Date();
-                trade.pnl = 500;
-                return res.json({ status: 'closed_mock', symbol: trade.symbol, pnl: 500 });
+                trade.pnl = 50;
+                return res.json({ status: 'closed_mock', symbol: trade.symbol, pnl: 50 });
             }
 
-            // Real exit logic...
-            const quotes = await zerodhaEngine.getQuote([`NFO:${trade.symbol}`]);
-            const ltp = quotes[`NFO:${trade.symbol}`].last_price;
-            const slWatcher = require('../services/slWatcherService');
-            await slWatcher.triggerExit(trade, ltp, 'MANUAL_EXIT', req.app.get('io'));
+            // Real MT5 exit logic...
+            const mt5PositionManager = require('../services/mt5PositionManager');
+            const closeOrder = await mt5PositionManager.requestClosePosition(id, 'MANUAL_EXIT');
 
-            res.json({ status: 'exit_triggered', symbol: trade.symbol });
+            res.json({ status: 'exit_triggered', symbol: trade.symbol, orderId: closeOrder.orderId, ticket: trade.mt5Ticket });
         } catch (error) { res.status(500).json({ error: error.message }); }
     },
 

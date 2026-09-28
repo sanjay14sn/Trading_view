@@ -17,6 +17,8 @@ const tradeSchema = new mongoose.Schema({
     },
     kiteOrderId: { type: String, index: true },
     kiteExitOrderId: { type: String },
+    mt5Ticket: { type: Number, index: true },
+    mt5MagicNumber: { type: Number, default: 123456 },
     sl: { type: Number },          // Stop Loss
     target: { type: Number },      // Target Price
     pnl: { type: Number },         // Profit/Loss
