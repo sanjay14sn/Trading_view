@@ -143,6 +143,7 @@ void ProcessOrdersJson(string json)
       double sl      = StringToDouble(ExtractJsonValue(orderObj, "sl"));
       double tp      = StringToDouble(ExtractJsonValue(orderObj, "tp"));
       if(tp <= 0) tp  = StringToDouble(ExtractJsonValue(orderObj, "target"));
+      ulong  ticket       = StringToInteger(ExtractJsonValue(orderObj, "ticket"));
       ulong  closeTicket  = StringToInteger(ExtractJsonValue(orderObj, "closeTicket"));
       string closeTradeId = ExtractJsonValue(orderObj, "closeTradeId");
 
@@ -184,11 +185,18 @@ void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ul
       }
       else
       {
-         Print("⚠️ Reversal Exit Failed for Ticket ", closeTicket, ". Proceeding with new position entry...");
+         string errorDesc = StringFormat("Reversal Close Failed for Ticket %I64u. ErrCode: %d, RetCode: %d", closeTicket, GetLastError(), trade.ResultRetcode());
+         Print("❌ ", errorDesc);
+         SendExecutionResult(orderId, tradeId, 0, 0, "FAILED", errorDesc);
+         return; // 🛑 STRICT REVERSAL SAFETY: DO NOT OPEN NEW POSITION IF CLOSE FAILED!
       }
    }
+   else if(closeTicket > 0)
+   {
+      Print("ℹ️ Ticket #", closeTicket, " no longer exists (already closed). Proceeding with reversal entry...");
+   }
 
-   // Open new position in opposite direction (sl=0, tp=0)
+   // Open new position ONLY if close succeeded or position was already closed
    ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, 0, 0);
 }
 
