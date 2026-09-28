@@ -143,20 +143,53 @@ void ProcessOrdersJson(string json)
       double sl      = StringToDouble(ExtractJsonValue(orderObj, "sl"));
       double tp      = StringToDouble(ExtractJsonValue(orderObj, "tp"));
       if(tp <= 0) tp  = StringToDouble(ExtractJsonValue(orderObj, "target"));
-      ulong  ticket  = StringToInteger(ExtractJsonValue(orderObj, "ticket"));
+      ulong  closeTicket  = StringToInteger(ExtractJsonValue(orderObj, "closeTicket"));
+      string closeTradeId = ExtractJsonValue(orderObj, "closeTradeId");
 
       if(symbol == "") symbol = InpDefaultSymbol;
       if(volume <= 0)  volume = 0.01;
 
       if(type == "OPEN")
       {
-         ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, sl, tp);
+         ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, 0, 0);
+      }
+      else if(type == "REVERSE")
+      {
+         ExecuteReverseOrder(orderId, tradeId, closeTradeId, closeTicket, symbol, action, volume);
       }
       else if(type == "CLOSE")
       {
          ExecuteCloseOrder(orderId, tradeId, ticket);
       }
    }
+}
+
+//+------------------------------------------------------------------+
+//| Execute Atomic Position Reversal (Close existing + Open new)      |
+//+------------------------------------------------------------------+
+void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ulong closeTicket, string symbol, string action, double volume)
+{
+   Print("🔄 REVERSAL SIGNAL: Closing Ticket #", closeTicket, " and Opening ", action, " ", volume, " ", symbol);
+
+   if(closeTicket > 0 && PositionSelectByTicket(closeTicket))
+   {
+      double closePrice = PositionGetDouble(POSITION_PRICE_CURRENT);
+      double profit     = PositionGetDouble(POSITION_PROFIT);
+      bool closeSuccess = trade.PositionClose(closeTicket);
+
+      if(closeSuccess)
+      {
+         Print("✅ Reversal Exit Successful! Closed Ticket: ", closeTicket, " Close Price: ", closePrice, " PnL: ", profit);
+         SendTradeClosed(closeTradeId, closeTicket, closePrice, profit, "REVERSAL_EXIT");
+      }
+      else
+      {
+         Print("⚠️ Reversal Exit Failed for Ticket ", closeTicket, ". Proceeding with new position entry...");
+      }
+   }
+
+   // Open new position in opposite direction (sl=0, tp=0)
+   ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, 0, 0);
 }
 
 //+------------------------------------------------------------------+

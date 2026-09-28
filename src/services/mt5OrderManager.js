@@ -7,16 +7,16 @@ const config = require('../config');
 /**
  * MT5 Order Manager Service
  * Queues orders for MT5 EA polling and processes execution results.
+ * Supports OPEN, CLOSE, and atomic REVERSE orders for signal flipping.
  */
 class MT5OrderManager {
     constructor() {
-        // Pending order queue for EA polling
         this.pendingOrders = new Map();
         this.orderCounter = 0;
     }
 
     /**
-     * Add a new signal trade to MT5 pending order queue
+     * Add a new OPEN order to MT5 pending queue (sl=0, tp=0)
      */
     async createOrder(tradeRecord, signalData = {}) {
         this.orderCounter++;
@@ -30,13 +30,13 @@ class MT5OrderManager {
         const pendingOrder = {
             orderId,
             tradeId: String(tradeRecord._id),
-            type: 'OPEN', // OPEN or CLOSE
+            type: 'OPEN', // OPEN, CLOSE, REVERSE
             symbol,
             action,
             volume,
             price,
-            sl: tradeRecord.sl || signalData.sl || 0,
-            tp: tradeRecord.target || signalData.target || 0,
+            sl: signalData.sl || 0, // Default 0 for signal-only exit
+            tp: signalData.target || signalData.tp || 0,
             magicNumber: config.mt5.magicNumber,
             createdAt: new Date().toISOString()
         };
@@ -46,12 +46,56 @@ class MT5OrderManager {
         logAction('MT5_ORDER_QUEUED', {
             orderId,
             tradeId: pendingOrder.tradeId,
+            type: 'OPEN',
             symbol,
             action,
             volume
         });
 
         return pendingOrder;
+    }
+
+    /**
+     * Create an atomic REVERSE order to close existing opposite trade and open new trade
+     */
+    async createReverseOrder(newTradeRecord, existingTradeRecord, signalData = {}) {
+        this.orderCounter++;
+        const orderId = `REV_MT5_${Date.now()}_${this.orderCounter}`;
+
+        const symbol = newTradeRecord.symbol || config.mt5.symbol || 'BTCUSD';
+        const action = newTradeRecord.action ? newTradeRecord.action.toUpperCase() : 'BUY';
+        const volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 0.01;
+        const price = newTradeRecord.entryPrice || signalData.price || 0;
+
+        const reverseOrder = {
+            orderId,
+            tradeId: String(newTradeRecord._id),
+            closeTradeId: String(existingTradeRecord._id),
+            closeTicket: existingTradeRecord.mt5Ticket || 0,
+            type: 'REVERSE', // Atomic Close + Open opposite direction
+            symbol,
+            action,
+            volume,
+            price,
+            sl: signalData.sl || 0,
+            tp: signalData.target || signalData.tp || 0,
+            magicNumber: config.mt5.magicNumber,
+            createdAt: new Date().toISOString()
+        };
+
+        this.pendingOrders.set(orderId, reverseOrder);
+
+        logAction('MT5_REVERSE_ORDER_QUEUED', {
+            orderId,
+            newTradeId: reverseOrder.tradeId,
+            closeTradeId: reverseOrder.closeTradeId,
+            closeTicket: reverseOrder.closeTicket,
+            symbol,
+            action,
+            volume
+        });
+
+        return reverseOrder;
     }
 
     /**
@@ -92,7 +136,7 @@ class MT5OrderManager {
 
             const updatedTrade = await tradeLifecycleManager.updateTrade(tradeId, updates);
 
-            // 3. Emit real-time socket event for mobile app & web dashboard
+            // Broadcast real-time socket event for mobile app & web dashboard
             socketService.emitEvent('order_placed', {
                 tradeId,
                 symbol: updatedTrade.symbol,

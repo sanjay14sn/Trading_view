@@ -71,15 +71,34 @@ const postSignal = async (req, res) => {
             return res.status(200).json({ status: "ignored", reason: "market_closed" });
         }
 
-        // 3. Trade Initiation (Skipped if config.takePositions is false)
+        // 3. Single-Position Signal Reversal Engine (BUY 🔄 SELL)
         let trade = null;
         if (config.takePositions) {
             const mt5OrderManager = require('../services/mt5OrderManager');
             const tradeQuantity = rawSignal.quantity || config.mt5.defaultLotSize || 0.01;
-            trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, rawSignal.action.toUpperCase(), tradeQuantity, rawSignal.price);
 
-            // Queue pending order for MT5 EA polling
-            await mt5OrderManager.createOrder(trade, rawSignal);
+            // Check for existing active open trade for this symbol
+            const activeTrade = isDbConnected()
+                ? await Trade.findOne({ symbol: futuresSymbol, status: { $in: ['OPEN', 'PENDING', 'QUEUED'] } })
+                : mockStore.trades.find(t => (t.symbol === futuresSymbol || t.symbol === symbolInput) && (t.status === 'OPEN' || t.status === 'PENDING'));
+
+            if (activeTrade) {
+                const isSameDirection = activeTrade.action.toUpperCase() === actionInput.toUpperCase();
+                if (isSameDirection) {
+                    console.log(`ℹ️ Signal ignored: Already holding an active ${actionInput} position for ${futuresSymbol}. No stacking allowed.`);
+                    await signalDoc.updateOne({ status: 'ignored', rejectionReason: 'same_direction_position_exists' });
+                    return res.status(200).json({ status: "ignored", reason: "same_direction_position_exists" });
+                }
+
+                // Atomic Reversal: Close existing opposite position & Open new position
+                console.log(`🔄 REVERSAL SIGNAL: Flipping position from ${activeTrade.action} to ${actionInput} for ${futuresSymbol}...`);
+                trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, actionInput, tradeQuantity, rawSignal.price);
+                await mt5OrderManager.createReverseOrder(trade, activeTrade, rawSignal);
+            } else {
+                // First trade initiation when no active position exists
+                trade = await tradeLifecycle.initiateTrade(signalDoc._id, futuresSymbol, actionInput, tradeQuantity, rawSignal.price);
+                await mt5OrderManager.createOrder(trade, rawSignal);
+            }
         } else {
             console.log(`ℹ️ Signal received & alerted, but active position taking is DISABLED (TAKE_POSITIONS=false).`);
             await signalDoc.updateOne({ status: 'signal_only' });
