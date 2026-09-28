@@ -13,7 +13,7 @@
 //--- Input Parameters
 input string   InpServerURL        = "https://apitrading.iqsync.in"; // Node.js Backend Server URL
 input int      InpPollIntervalMs   = 500;                     // Polling Interval (ms)
-input string   InpDefaultSymbol    = "BTCUSD";                // Default Trading Symbol
+input string   InpDefaultSymbol    = "BTC";                   // Default Trading Symbol
 input ulong    InpMagicNumber      = 123456;                  // EA Magic Number
 input string   InpEAToken          = "hantec_mt5_secret";     // EA Authorization Token
 input ulong    InpSlippage         = 20;                      // Max Slippage Points
@@ -25,6 +25,20 @@ datetime       lastSyncTime        = 0;
 ulong          lastProcessedDeal   = 0;
 
 //+------------------------------------------------------------------+
+//| Symbol Normalization Helper                                      |
+//+------------------------------------------------------------------+
+string NormalizeSymbol(string sym)
+{
+   string upper = sym;
+   StringToUpper(upper);
+   if(upper == "" || upper == "BTCUSD" || upper == "BTCUSDT" || upper == "BITSTAMPBTCUSD" || upper == "BINANCEBTCUSDT" || StringFind(upper, "BTC") == 0)
+   {
+      return "BTC";
+   }
+   return upper;
+}
+
+//+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
@@ -34,7 +48,7 @@ int OnInit()
 
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints(InpSlippage);
-   trade.SetTypeFilling(ORDER_FILLING_IOC);
+   trade.SetTypeFillingBySymbol(InpDefaultSymbol);
 
    // Start millisecond timer for fast polling
    if(!EventSetMillisecondTimer(InpPollIntervalMs))
@@ -147,8 +161,8 @@ void ProcessOrdersJson(string json)
       ulong  closeTicket  = StringToInteger(ExtractJsonValue(orderObj, "closeTicket"));
       string closeTradeId = ExtractJsonValue(orderObj, "closeTradeId");
 
-      if(symbol == "") symbol = InpDefaultSymbol;
-      if(volume <= 0)  volume = 0.01;
+      symbol = NormalizeSymbol(symbol);
+      if(volume <= 0)  volume = 1.0;
 
       if(type == "OPEN")
       {
@@ -170,6 +184,8 @@ void ProcessOrdersJson(string json)
 //+------------------------------------------------------------------+
 void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ulong closeTicket, string symbol, string action, double volume)
 {
+   symbol = NormalizeSymbol(symbol);
+   trade.SetTypeFillingBySymbol(symbol);
    Print("🔄 REVERSAL SIGNAL: Closing Ticket #", closeTicket, " and Opening ", action, " ", volume, " ", symbol);
 
    if(closeTicket > 0 && PositionSelectByTicket(closeTicket))
@@ -205,6 +221,8 @@ void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ul
 //+------------------------------------------------------------------+
 void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string action, double volume, double sl, double tp)
 {
+   symbol = NormalizeSymbol(symbol);
+   trade.SetTypeFillingBySymbol(symbol);
    Print("⚡ Executing Market ", action, " Order for ", symbol, " Volume: ", volume, " SL: ", sl, " TP: ", tp);
 
    bool success = false;
@@ -245,6 +263,8 @@ void ExecuteCloseOrder(string orderId, string tradeId, ulong ticket)
    bool success = false;
    if(ticket > 0 && PositionSelectByTicket(ticket))
    {
+      string posSymbol = PositionGetString(POSITION_SYMBOL);
+      if(posSymbol != "") trade.SetTypeFillingBySymbol(posSymbol);
       double closePrice = PositionGetDouble(POSITION_PRICE_CURRENT);
       double profit     = PositionGetDouble(POSITION_PROFIT);
       success           = trade.PositionClose(ticket);

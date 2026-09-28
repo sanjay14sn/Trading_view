@@ -15,10 +15,10 @@ const config = {
     },
 
     mt5: {
-        symbol: process.env.MT5_SYMBOL || 'BTCUSD',
+        symbol: process.env.MT5_SYMBOL || 'BTC',
         magicNumber: parseInt(process.env.MT5_MAGIC_NUMBER, 10) || 123456,
         eaToken: process.env.MT5_EA_TOKEN || 'hantec_mt5_secret',
-        defaultLotSize: parseFloat(process.env.MT5_DEFAULT_LOT) || 0.01
+        defaultLotSize: parseFloat(process.env.MT5_DEFAULT_LOT) || 1.0
     },
 
     risk: {

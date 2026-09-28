@@ -1,5 +1,6 @@
 const tradeLifecycleManager = require('./tradeLifecycleManager');
 const mt5OrderManager = require('./mt5OrderManager');
+const instrumentMapper = require('./instrumentMapper');
 const socketService = require('./socketService');
 const pushNotificationService = require('./pushNotificationService');
 const pnlService = require('./pnlService');
@@ -21,7 +22,8 @@ class MT5PositionManager {
         }
 
         const ticket = trade.mt5Ticket;
-        const symbol = trade.symbol || config.mt5.symbol || 'BTCUSD';
+        const rawSym = trade.symbol || config.mt5.symbol || 'BTC';
+        const symbol = instrumentMapper.getFuturesSymbol(rawSym);
 
         // Add CLOSE order command to pending queue for EA
         mt5OrderManager.orderCounter++;
@@ -34,7 +36,7 @@ class MT5PositionManager {
             type: 'CLOSE', // Close position
             symbol,
             action: trade.action.toUpperCase() === 'BUY' ? 'SELL' : 'BUY', // Inverse deal
-            volume: trade.quantity || 0.01,
+            volume: trade.quantity || config.mt5.defaultLotSize || 1.0,
             magicNumber: config.mt5.magicNumber,
             reason,
             createdAt: new Date().toISOString()

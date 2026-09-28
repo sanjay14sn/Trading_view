@@ -1,5 +1,6 @@
 const { logAction, logError } = require('../utils/logger');
 const tradeLifecycleManager = require('./tradeLifecycleManager');
+const instrumentMapper = require('./instrumentMapper');
 const socketService = require('./socketService');
 const pushNotificationService = require('./pushNotificationService');
 const config = require('../config');
@@ -22,9 +23,10 @@ class MT5OrderManager {
         this.orderCounter++;
         const orderId = `ORD_MT5_${Date.now()}_${this.orderCounter}`;
 
-        const symbol = tradeRecord.symbol || config.mt5.symbol || 'BTCUSD';
+        const rawSym = tradeRecord.symbol || signalData.symbol || config.mt5.symbol || 'BTC';
+        const symbol = instrumentMapper.getFuturesSymbol(rawSym);
         const action = tradeRecord.action ? tradeRecord.action.toUpperCase() : 'BUY';
-        const volume = tradeRecord.quantity || config.mt5.defaultLotSize || 0.01;
+        const volume = tradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
         const price = tradeRecord.entryPrice || signalData.price || 0;
 
         const pendingOrder = {
@@ -62,9 +64,10 @@ class MT5OrderManager {
         this.orderCounter++;
         const orderId = `REV_MT5_${Date.now()}_${this.orderCounter}`;
 
-        const symbol = newTradeRecord.symbol || config.mt5.symbol || 'BTCUSD';
+        const rawSym = newTradeRecord.symbol || signalData.symbol || config.mt5.symbol || 'BTC';
+        const symbol = instrumentMapper.getFuturesSymbol(rawSym);
         const action = newTradeRecord.action ? newTradeRecord.action.toUpperCase() : 'BUY';
-        const volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 0.01;
+        const volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
         const price = newTradeRecord.entryPrice || signalData.price || 0;
 
         const reverseOrder = {
