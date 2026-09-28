@@ -11,7 +11,7 @@
 #include <Trade\Trade.mqh>
 
 //--- Input Parameters
-input string   InpServerURL        = "http://127.0.0.1:3000"; // Node.js Backend Server URL
+input string   InpServerURL        = "https://apitrading.iqsync.in"; // Node.js Backend Server URL
 input int      InpPollIntervalMs   = 500;                     // Polling Interval (ms)
 input string   InpDefaultSymbol    = "BTCUSD";                // Default Trading Symbol
 input ulong    InpMagicNumber      = 123456;                  // EA Magic Number
@@ -140,6 +140,9 @@ void ProcessOrdersJson(string json)
       string action  = ExtractJsonValue(orderObj, "action");
       double volume  = StringToDouble(ExtractJsonValue(orderObj, "volume"));
       double price   = StringToDouble(ExtractJsonValue(orderObj, "price"));
+      double sl      = StringToDouble(ExtractJsonValue(orderObj, "sl"));
+      double tp      = StringToDouble(ExtractJsonValue(orderObj, "tp"));
+      if(tp <= 0) tp  = StringToDouble(ExtractJsonValue(orderObj, "target"));
       ulong  ticket  = StringToInteger(ExtractJsonValue(orderObj, "ticket"));
 
       if(symbol == "") symbol = InpDefaultSymbol;
@@ -147,7 +150,7 @@ void ProcessOrdersJson(string json)
 
       if(type == "OPEN")
       {
-         ExecuteOpenOrder(orderId, tradeId, symbol, action, volume);
+         ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, sl, tp);
       }
       else if(type == "CLOSE")
       {
@@ -159,20 +162,20 @@ void ProcessOrdersJson(string json)
 //+------------------------------------------------------------------+
 //| Execute BUY / SELL market order on MT5                           |
 //+------------------------------------------------------------------+
-void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string action, double volume)
+void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string action, double volume, double sl, double tp)
 {
-   Print("⚡ Executing Market ", action, " Order for ", symbol, " Volume: ", volume);
+   Print("⚡ Executing Market ", action, " Order for ", symbol, " Volume: ", volume, " SL: ", sl, " TP: ", tp);
 
    bool success = false;
    if(action == "BUY")
    {
       double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
-      success = trade.Buy(volume, symbol, ask, 0, 0, "TV_WEBHOOK_" + tradeId);
+      success = trade.Buy(volume, symbol, ask, sl, tp, "TV_WEBHOOK_" + tradeId);
    }
    else if(action == "SELL")
    {
       double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
-      success = trade.Sell(volume, symbol, bid, 0, 0, "TV_WEBHOOK_" + tradeId);
+      success = trade.Sell(volume, symbol, bid, sl, tp, "TV_WEBHOOK_" + tradeId);
    }
 
    ulong resultTicket = trade.ResultOrder();
