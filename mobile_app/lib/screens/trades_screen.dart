@@ -44,7 +44,7 @@ class _TradesScreenState extends State<TradesScreen> with SingleTickerProviderSt
   }
 
   static String _formatCurrency(dynamic val) {
-    if (val == null) return '$0.00';
+    if (val == null) return '\$0.00';
     final numVal = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
     final formatter = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
     return formatter.format(numVal);
