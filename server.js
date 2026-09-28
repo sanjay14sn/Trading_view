@@ -2,7 +2,6 @@ const http = require('http');
 const app = require('./src/app');
 const connectDB = require('./src/db/mongoose');
 const socketService = require('./src/services/socketService');
-const setupZerodhaWorker = require('./src/queues/workers/zerodhaWorker');
 const setupCronJobs = require('./src/utils/cronJobs');
 const slWatcher = require('./src/services/slWatcherService');
 const keepAliveService = require('./src/services/keepAliveService');
