@@ -107,7 +107,55 @@ class MT5OrderManager {
      * Retrieve all pending orders for EA polling request
      */
     getPendingOrders() {
-        return Array.from(this.pendingOrders.values());
+        const orders = Array.from(this.pendingOrders.values());
+
+        const bySymbol = new Map();
+
+        for (const order of orders) {
+            const symbol = order.symbol || 'BTCUSD';
+
+            if (!bySymbol.has(symbol)) {
+                bySymbol.set(symbol, []);
+            }
+
+            bySymbol.get(symbol).push(order);
+        }
+
+        const result = [];
+
+        for (const [symbol, symbolOrders] of bySymbol.entries()) {
+
+            // REVERSE always has priority
+            const reverseOrders = symbolOrders.filter(
+                order => order.type === 'REVERSE'
+            );
+
+            if (reverseOrders.length > 0) {
+
+                // Keep only the newest REVERSE
+                reverseOrders.sort(
+                    (a, b) =>
+                        new Date(b.createdAt) -
+                        new Date(a.createdAt)
+                );
+
+                result.push(reverseOrders[0]);
+
+                continue;
+            }
+
+            // No reversal pending.
+            // Keep only the newest order for this symbol.
+            symbolOrders.sort(
+                (a, b) =>
+                    new Date(b.createdAt) -
+                    new Date(a.createdAt)
+            );
+
+            result.push(symbolOrders[0]);
+        }
+
+        return result;
     }
 
     /**

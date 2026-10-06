@@ -104,8 +104,12 @@ const tradeLifecycleManager = {
             const finalUpdates = {
                 exitPrice,
                 exitTime: new Date(),
-                status: reason,
-                pnl: Math.round(pnl * 100) / 100
+                status: 'CLOSED',
+                pnl: Math.round(pnl * 100) / 100,
+                tags: [
+                    ...(trade.tags || []),
+                    `EXIT_REASON:${reason}`
+                ]
             };
 
             if (isDbConnected() && mongoose.Types.ObjectId.isValid(tradeId)) {

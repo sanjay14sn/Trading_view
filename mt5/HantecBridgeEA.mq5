@@ -5,52 +5,68 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, TradingView Webhook Algo Platform"
 #property link      "https://iqsync.in"
-#property version   "1.00"
+#property version   "2.00"
 #property description "Hantec MT5 Expert Advisor for TradingView Webhook Node.js Backend"
 
 #include <Trade\Trade.mqh>
 
-//--- Input Parameters
-input string   InpServerURL        = "https://apitrading.iqsync.in"; // Node.js Backend Server URL
-input int      InpPollIntervalMs   = 500;                     // Polling Interval (ms)
-input string   InpDefaultSymbol    = "BTC";                   // Default Trading Symbol
-input ulong    InpMagicNumber      = 123456;                  // EA Magic Number
-input string   InpEAToken          = "hantec_mt5_secret";     // EA Authorization Token
-input ulong    InpSlippage         = 20;                      // Max Slippage Points
-input bool     InpAutoSyncAccount  = true;                    // Sync Account Telemetry
-
-//--- Global Objects & Variables
-CTrade         trade;
-datetime       lastSyncTime        = 0;
-ulong          lastProcessedDeal   = 0;
+//+------------------------------------------------------------------+
+//| Input Parameters                                                  |
+//+------------------------------------------------------------------+
+input string   InpServerURL        = "https://apitrading.iqsync.in";
+input int      InpPollIntervalMs   = 500;
+input string   InpDefaultSymbol    = "BTCUSD";
+input ulong    InpMagicNumber      = 123456;
+input string   InpEAToken          = "hantec_mt5_secret";
+input ulong    InpSlippage         = 20;
+input bool     InpAutoSyncAccount  = true;
 
 //+------------------------------------------------------------------+
-//| Symbol Normalization Helper                                      |
+//| Global Objects & Variables                                       |
+//+------------------------------------------------------------------+
+CTrade   trade;
+
+datetime lastSyncTime      = 0;
+ulong    lastProcessedDeal = 0;
+
+//+------------------------------------------------------------------+
+//| Normalize symbol                                                 |
 //+------------------------------------------------------------------+
 string NormalizeSymbol(string sym)
 {
    string upper = sym;
+
    StringToUpper(upper);
-   if(upper == "" || upper == "BTCUSD" || upper == "BTCUSDT" || upper == "BITSTAMPBTCUSD" || upper == "BINANCEBTCUSDT" || StringFind(upper, "BTC") == 0)
+
+   if(upper == "" ||
+      upper == "BTC" ||
+      upper == "BTCUSD" ||
+      upper == "BTCUSDT" ||
+      upper == "BITSTAMPBTCUSD" ||
+      upper == "BINANCEBTCUSDT")
    {
-      return "BTC";
+      return "BTCUSD";
    }
+
    return upper;
 }
 
 //+------------------------------------------------------------------+
-//| Expert initialization function                                   |
+//| Expert initialization                                            |
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("🚀 Initializing Hantec MT5 Bridge EA for ", InpDefaultSymbol);
-   Print("🌐 Target Backend: ", InpServerURL);
+   Print("=================================================");
+   Print("🚀 Initializing Hantec MT5 Bridge EA");
+   Print("📊 Default Symbol: ", InpDefaultSymbol);
+   Print("🌐 Backend: ", InpServerURL);
+   Print("🔢 Magic Number: ", InpMagicNumber);
+   Print("=================================================");
 
    trade.SetExpertMagicNumber(InpMagicNumber);
    trade.SetDeviationInPoints(InpSlippage);
    trade.SetTypeFillingBySymbol(InpDefaultSymbol);
 
-   // Start millisecond timer for fast polling
    if(!EventSetMillisecondTimer(InpPollIntervalMs))
    {
       Print("❌ Failed to set millisecond timer!");
@@ -58,336 +74,1346 @@ int OnInit()
    }
 
    Print("✅ Hantec Bridge EA initialized successfully.");
+
    return(INIT_SUCCEEDED);
 }
 
 //+------------------------------------------------------------------+
-//| Expert deinitialization function                                 |
+//| Expert deinitialization                                          |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
    EventKillTimer();
-   Print("🛑 Hantec Bridge EA stopped. Reason code: ", reason);
+
+   Print(
+      "🛑 Hantec Bridge EA stopped. Reason code: ",
+      reason
+   );
 }
 
 //+------------------------------------------------------------------+
-//| Expert timer function (Polls Backend & Syncs State)             |
+//| Timer                                                             |
 //+------------------------------------------------------------------+
 void OnTimer()
 {
-   // 1. Poll Backend for Pending Orders
    PollPendingOrders();
 
-   // 2. Periodic Account Telemetry Sync (Every 5 Seconds)
-   if(InpAutoSyncAccount && (TimeCurrent() - lastSyncTime >= 5))
+   if(InpAutoSyncAccount &&
+      (TimeCurrent() - lastSyncTime >= 5))
    {
       SendAccountSync();
+
       lastSyncTime = TimeCurrent();
    }
 }
 
 //+------------------------------------------------------------------+
-//| Helper to perform WebRequest HTTP GET/POST                       |
+//| HTTP Request                                                      |
 //+------------------------------------------------------------------+
-bool SendHttpRequest(string method, string urlPath, string jsonBody, string &outResponse)
+bool SendHttpRequest(
+   string method,
+   string urlPath,
+   string jsonBody,
+   string &outResponse
+)
 {
    char data[];
    char result[];
+
    string resultHeaders;
-   string headers = "Content-Type: application/json\r\nx-ea-token: " + InpEAToken + "\r\n";
+
+   string headers =
+      "Content-Type: application/json\r\n"
+      "x-ea-token: " + InpEAToken + "\r\n";
 
    int bodyLen = StringLen(jsonBody);
+
    if(bodyLen > 0)
    {
-      StringToCharArray(jsonBody, data, 0, bodyLen, CP_UTF8);
+      StringToCharArray(
+         jsonBody,
+         data,
+         0,
+         bodyLen,
+         CP_UTF8
+      );
    }
 
    string fullUrl = InpServerURL + urlPath;
+
    ResetLastError();
 
-   int res = WebRequest(method, fullUrl, headers, 3000, data, result, resultHeaders);
-   if(res == 200 || res == 201 || res == 202)
+   int res = WebRequest(
+      method,
+      fullUrl,
+      headers,
+      3000,
+      data,
+      result,
+      resultHeaders
+   );
+
+   if(res == 200 ||
+      res == 201 ||
+      res == 202)
    {
-      outResponse = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+      outResponse =
+         CharArrayToString(
+            result,
+            0,
+            WHOLE_ARRAY,
+            CP_UTF8
+         );
+
       return true;
    }
-   else
-   {
-      Print("⚠️ WebRequest failed [Method: ", method, " Path: ", urlPath, " HTTP Code: ", res, " Err: ", GetLastError(), "]");
-      return false;
-   }
+
+   Print(
+      "⚠️ WebRequest failed | Method: ",
+      method,
+      " | Path: ",
+      urlPath,
+      " | HTTP: ",
+      res,
+      " | Error: ",
+      GetLastError()
+   );
+
+   return false;
 }
 
 //+------------------------------------------------------------------+
-//| Poll pending orders from Node.js backend                         |
+//| Poll pending orders                                               |
 //+------------------------------------------------------------------+
 void PollPendingOrders()
 {
    string response;
-   if(!SendHttpRequest("GET", "/api/mt5/pending-orders", "", response)) return;
 
-   if(StringFind(response, "\"orders\":[") < 0 || StringFind(response, "\"orders\":[]") >= 0) return;
+   if(!SendHttpRequest(
+      "GET",
+      "/api/mt5/pending-orders",
+      "",
+      response))
+   {
+      return;
+   }
 
-   // Parse pending orders from JSON payload
+   if(
+      StringFind(
+         response,
+         "\"orders\":["
+      ) < 0
+   )
+   {
+      return;
+   }
+
+   if(
+      StringFind(
+         response,
+         "\"orders\":[]"
+      ) >= 0
+   )
+   {
+      return;
+   }
+
    ProcessOrdersJson(response);
 }
 
 //+------------------------------------------------------------------+
-//| Process JSON array of pending orders                             |
+//| Process pending orders                                            |
 //+------------------------------------------------------------------+
 void ProcessOrdersJson(string json)
 {
-   // Simple string parser for demo reliability
    int pos = 0;
-   while((pos = StringFind(json, "{\"orderId\":", pos)) >= 0)
-   {
-      int endPos = StringFind(json, "}", pos);
-      if(endPos < 0) break;
 
-      string orderObj = StringSubstr(json, pos, endPos - pos + 1);
+   while(
+      (pos =
+         StringFind(
+            json,
+            "{\"orderId\":",
+            pos
+         )) >= 0
+   )
+   {
+      int endPos =
+         StringFind(
+            json,
+            "}",
+            pos
+         );
+
+      if(endPos < 0)
+         break;
+
+      string orderObj =
+         StringSubstr(
+            json,
+            pos,
+            endPos - pos + 1
+         );
+
       pos = endPos + 1;
 
-      string orderId = ExtractJsonValue(orderObj, "orderId");
-      string tradeId = ExtractJsonValue(orderObj, "tradeId");
-      string type    = ExtractJsonValue(orderObj, "type");
-      string symbol  = ExtractJsonValue(orderObj, "symbol");
-      string action  = ExtractJsonValue(orderObj, "action");
-      double volume  = StringToDouble(ExtractJsonValue(orderObj, "volume"));
-      double price   = StringToDouble(ExtractJsonValue(orderObj, "price"));
-      double sl      = StringToDouble(ExtractJsonValue(orderObj, "sl"));
-      double tp      = StringToDouble(ExtractJsonValue(orderObj, "tp"));
-      if(tp <= 0) tp  = StringToDouble(ExtractJsonValue(orderObj, "target"));
-      ulong  ticket       = StringToInteger(ExtractJsonValue(orderObj, "ticket"));
-      ulong  closeTicket  = StringToInteger(ExtractJsonValue(orderObj, "closeTicket"));
-      string closeTradeId = ExtractJsonValue(orderObj, "closeTradeId");
+      string orderId =
+         ExtractJsonValue(
+            orderObj,
+            "orderId"
+         );
+
+      string tradeId =
+         ExtractJsonValue(
+            orderObj,
+            "tradeId"
+         );
+
+      string type =
+         ExtractJsonValue(
+            orderObj,
+            "type"
+         );
+
+      string symbol =
+         ExtractJsonValue(
+            orderObj,
+            "symbol"
+         );
+
+      string action =
+         ExtractJsonValue(
+            orderObj,
+            "action"
+         );
+
+      double volume =
+         StringToDouble(
+            ExtractJsonValue(
+               orderObj,
+               "volume"
+            )
+         );
+
+      double price =
+         StringToDouble(
+            ExtractJsonValue(
+               orderObj,
+               "price"
+            )
+         );
+
+      double sl =
+         StringToDouble(
+            ExtractJsonValue(
+               orderObj,
+               "sl"
+            )
+         );
+
+      double tp =
+         StringToDouble(
+            ExtractJsonValue(
+               orderObj,
+               "tp"
+            )
+         );
+
+      if(tp <= 0)
+      {
+         tp =
+            StringToDouble(
+               ExtractJsonValue(
+                  orderObj,
+                  "target"
+               )
+            );
+      }
+
+      ulong ticket =
+         (ulong)StringToInteger(
+            ExtractJsonValue(
+               orderObj,
+               "ticket"
+            )
+         );
+
+      ulong closeTicket =
+         (ulong)StringToInteger(
+            ExtractJsonValue(
+               orderObj,
+               "closeTicket"
+            )
+         );
+
+      string closeTradeId =
+         ExtractJsonValue(
+            orderObj,
+            "closeTradeId"
+         );
 
       symbol = NormalizeSymbol(symbol);
-      if(volume <= 0)  volume = 1.0;
-      if(symbol == "BTC") volume = 1.0;
+
+      if(volume <= 0)
+         volume = 1.0;
+
+      // -------------------------------------------------------------
+      // OPEN
+      // -------------------------------------------------------------
 
       if(type == "OPEN")
       {
-         ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, 0, 0);
+         ExecuteOpenOrder(
+            orderId,
+            tradeId,
+            symbol,
+            action,
+            volume,
+            sl,
+            tp
+         );
       }
+
+      // -------------------------------------------------------------
+      // REVERSE
+      // -------------------------------------------------------------
+
       else if(type == "REVERSE")
       {
-         ExecuteReverseOrder(orderId, tradeId, closeTradeId, closeTicket, symbol, action, volume);
+         ExecuteReverseOrder(
+            orderId,
+            tradeId,
+            closeTradeId,
+            closeTicket,
+            symbol,
+            action,
+            volume
+         );
       }
+
+      // -------------------------------------------------------------
+      // CLOSE
+      // -------------------------------------------------------------
+
       else if(type == "CLOSE")
       {
-         ExecuteCloseOrder(orderId, tradeId, ticket);
+         ExecuteCloseOrder(
+            orderId,
+            tradeId,
+            ticket
+         );
       }
    }
 }
 
 //+------------------------------------------------------------------+
-//| Execute Atomic Position Reversal (Close existing + Open new)      |
+//| Find current EA position                                         |
 //+------------------------------------------------------------------+
-void ExecuteReverseOrder(string orderId, string tradeId, string closeTradeId, ulong closeTicket, string symbol, string action, double volume)
+bool GetCurrentPosition(
+   string symbol,
+   ulong &ticket,
+   ENUM_POSITION_TYPE &positionType,
+   double &volume
+)
 {
-   symbol = NormalizeSymbol(symbol);
-   if(symbol == "BTC") volume = 1.0;
-   trade.SetTypeFillingBySymbol(symbol);
-   Print("🔄 REVERSAL SIGNAL: Closing Ticket #", closeTicket, " and Opening ", action, " ", volume, " ", symbol);
+   ticket = 0;
+   volume = 0;
 
-   if(closeTicket > 0 && PositionSelectByTicket(closeTicket))
+   for(
+      int i = PositionsTotal() - 1;
+      i >= 0;
+      i--
+   )
    {
-      double closePrice = PositionGetDouble(POSITION_PRICE_CURRENT);
-      double profit     = PositionGetDouble(POSITION_PROFIT);
-      bool closeSuccess = trade.PositionClose(closeTicket);
+      ulong currentTicket =
+         PositionGetTicket(i);
 
-      if(closeSuccess)
-      {
-         Print("✅ Reversal Exit Successful! Closed Ticket: ", closeTicket, " Close Price: ", closePrice, " PnL: ", profit);
-         SendTradeClosed(closeTradeId, closeTicket, closePrice, profit, "REVERSAL_EXIT");
-      }
-      else
-      {
-         string errorDesc = StringFormat("Reversal Close Failed for Ticket %I64u. ErrCode: %d, RetCode: %d", closeTicket, GetLastError(), trade.ResultRetcode());
-         Print("❌ ", errorDesc);
-         SendExecutionResult(orderId, tradeId, 0, 0, "FAILED", errorDesc);
-         return; // 🛑 STRICT REVERSAL SAFETY: DO NOT OPEN NEW POSITION IF CLOSE FAILED!
-      }
-   }
-   else if(closeTicket > 0)
-   {
-      Print("ℹ️ Ticket #", closeTicket, " no longer exists (already closed). Proceeding with reversal entry...");
+      if(currentTicket == 0)
+         continue;
+
+      string currentSymbol =
+         PositionGetString(
+            POSITION_SYMBOL
+         );
+
+      if(currentSymbol != symbol)
+         continue;
+
+      long magic =
+         PositionGetInteger(
+            POSITION_MAGIC
+         );
+
+      if((ulong)magic != InpMagicNumber)
+         continue;
+
+      ticket = currentTicket;
+
+      positionType =
+         (ENUM_POSITION_TYPE)
+         PositionGetInteger(
+            POSITION_TYPE
+         );
+
+      volume =
+         PositionGetDouble(
+            POSITION_VOLUME
+         );
+
+      return true;
    }
 
-   // Open new position ONLY if close succeeded or position was already closed
-   ExecuteOpenOrder(orderId, tradeId, symbol, action, volume, 0, 0);
+   return false;
 }
 
 //+------------------------------------------------------------------+
-//| Execute BUY / SELL market order on MT5                           |
+//| Execute reversal                                                 |
+//|                                                                  |
+//| BUY -> SELL                                                       |
+//| SELL -> BUY                                                       |
+//| BUY -> BUY = ignore                                              |
+//| SELL -> SELL = ignore                                             |
+//| No position -> open requested direction                          |
 //+------------------------------------------------------------------+
-void ExecuteOpenOrder(string orderId, string tradeId, string symbol, string action, double volume, double sl, double tp)
+void ExecuteReverseOrder(
+   string orderId,
+   string tradeId,
+   string closeTradeId,
+   ulong closeTicket,
+   string symbol,
+   string action,
+   double volume
+)
 {
    symbol = NormalizeSymbol(symbol);
-   if(symbol == "BTC") volume = 1.0;
+
    trade.SetTypeFillingBySymbol(symbol);
-   Print("⚡ Executing Market ", action, " Order for ", symbol, " Volume: ", volume, " SL: ", sl, " TP: ", tp);
+
+   Print(
+      "🔄 SIGNAL: ",
+      action,
+      " ",
+      symbol
+   );
+
+   // -------------------------------------------------------------
+   // Find actual position in MT5
+   // -------------------------------------------------------------
+
+   ulong currentTicket = 0;
+
+   ENUM_POSITION_TYPE currentType;
+
+   double currentVolume = 0;
+
+   bool hasPosition =
+      GetCurrentPosition(
+         symbol,
+         currentTicket,
+         currentType,
+         currentVolume
+      );
+
+   // -------------------------------------------------------------
+   // NO POSITION
+   // -------------------------------------------------------------
+
+   if(!hasPosition)
+   {
+      Print(
+         "ℹ️ No existing position. Opening ",
+         action
+      );
+
+      ExecuteOpenOrder(
+         orderId,
+         tradeId,
+         symbol,
+         action,
+         volume,
+         0,
+         0
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // SAME DIRECTION
+   // -------------------------------------------------------------
+
+   if(
+      action == "BUY" &&
+      currentType == POSITION_TYPE_BUY
+   )
+   {
+      Print(
+         "ℹ️ BUY already exists. ",
+         "Ignoring duplicate BUY."
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         currentTicket,
+         0,
+         "IGNORED",
+         "BUY already exists"
+      );
+
+      return;
+   }
+
+   if(
+      action == "SELL" &&
+      currentType == POSITION_TYPE_SELL
+   )
+   {
+      Print(
+         "ℹ️ SELL already exists. ",
+         "Ignoring duplicate SELL."
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         currentTicket,
+         0,
+         "IGNORED",
+         "SELL already exists"
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // OPPOSITE DIRECTION
+   // -------------------------------------------------------------
+
+   double closePrice =
+      PositionGetDouble(
+         POSITION_PRICE_CURRENT
+      );
+
+   double profit =
+      PositionGetDouble(
+         POSITION_PROFIT
+      );
+
+   Print(
+      "🔄 Closing existing position #",
+      currentTicket,
+      " before opening ",
+      action
+   );
+
+   bool closeSuccess =
+      trade.PositionClose(
+         currentTicket
+      );
+
+   if(!closeSuccess)
+   {
+      string errorDesc =
+         StringFormat(
+            "Reversal Close Failed | Ticket: %I64u | Error: %d | RetCode: %d",
+            currentTicket,
+            GetLastError(),
+            trade.ResultRetcode()
+         );
+
+      Print(
+         "❌ ",
+         errorDesc
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         0,
+         0,
+         "FAILED",
+         errorDesc
+      );
+
+      return;
+   }
+
+   Print(
+      "✅ Reversal Exit Successful!",
+      " Ticket: ",
+      currentTicket,
+      " Close Price: ",
+      closePrice,
+      " PnL: ",
+      profit
+   );
+
+
+
+   // -------------------------------------------------------------
+   // VERIFY POSITION REALLY CLOSED
+   // -------------------------------------------------------------
+
+   bool stillOpen = true;
+
+   for(int i = 0; i < 10; i++)
+   {
+      Sleep(100);
+
+      if(!PositionSelectByTicket(currentTicket))
+      {
+         stillOpen = false;
+         break;
+      }
+   }
+
+   if(stillOpen)
+   {
+      Print(
+         "❌ Old position still exists.",
+         " New position will NOT be opened."
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         0,
+         0,
+         "FAILED",
+         "Old position still open after close verification"
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // OPEN NEW DIRECTION
+   // -------------------------------------------------------------
+
+   Print(
+      "🚀 Opening new ",
+      action,
+      " position."
+   );
+
+   ExecuteOpenOrder(
+      orderId,
+      tradeId,
+      symbol,
+      action,
+      volume,
+      0,
+      0
+   );
+}
+
+//+------------------------------------------------------------------+
+//| Execute BUY / SELL market order                                  |
+//+------------------------------------------------------------------+
+void ExecuteOpenOrder(
+   string orderId,
+   string tradeId,
+   string symbol,
+   string action,
+   double volume,
+   double sl,
+   double tp
+)
+{
+   symbol = NormalizeSymbol(symbol);
+
+   trade.SetTypeFillingBySymbol(symbol);
+
+   // -------------------------------------------------------------
+   // SAFETY CHECK
+   // -------------------------------------------------------------
+
+   ulong currentTicket = 0;
+
+   ENUM_POSITION_TYPE currentType;
+
+   double currentVolume = 0;
+
+   bool hasPosition =
+      GetCurrentPosition(
+         symbol,
+         currentTicket,
+         currentType,
+         currentVolume
+      );
+
+   // -------------------------------------------------------------
+   // Duplicate protection
+   // -------------------------------------------------------------
+
+   if(
+      action == "BUY" &&
+      hasPosition &&
+      currentType == POSITION_TYPE_BUY
+   )
+   {
+      Print(
+         "⚠️ Duplicate BUY blocked. ",
+         "Existing Ticket: ",
+         currentTicket
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         currentTicket,
+         0,
+         "IGNORED",
+         "Duplicate BUY blocked"
+      );
+
+      return;
+   }
+
+   if(
+      action == "SELL" &&
+      hasPosition &&
+      currentType == POSITION_TYPE_SELL
+   )
+   {
+      Print(
+         "⚠️ Duplicate SELL blocked. ",
+         "Existing Ticket: ",
+         currentTicket
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         currentTicket,
+         0,
+         "IGNORED",
+         "Duplicate SELL blocked"
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // Never allow two opposite positions
+   // -------------------------------------------------------------
+
+   if(hasPosition)
+   {
+      Print(
+         "❌ SAFETY BLOCK: Existing opposite position #",
+         currentTicket,
+         " still exists."
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         currentTicket,
+         0,
+         "FAILED",
+         "Opposite position still exists"
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // Volume
+   // -------------------------------------------------------------
+
+   if(volume <= 0)
+      volume = 1.0;
+
+   // -------------------------------------------------------------
+   // Execute
+   // -------------------------------------------------------------
+
+   Print(
+      "⚡ Executing Market ",
+      action,
+      " Order for ",
+      symbol,
+      " Volume: ",
+      volume,
+      " SL: ",
+      sl,
+      " TP: ",
+      tp
+   );
 
    bool success = false;
+
+   // -------------------------------------------------------------
+   // BUY
+   // -------------------------------------------------------------
+
    if(action == "BUY")
    {
-      double ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
-      if(symbol == "BTC") volume = 1.0;
-      success = trade.Buy(volume, symbol, ask, sl, tp, "TV_WEBHOOK_" + tradeId);
+      double ask =
+         SymbolInfoDouble(
+            symbol,
+            SYMBOL_ASK
+         );
+
+      if(ask <= 0)
+      {
+         Print(
+            "❌ Invalid BTCUSD ASK price."
+         );
+
+         return;
+      }
+
+      success =
+         trade.Buy(
+            volume,
+            symbol,
+            ask,
+            sl,
+            tp,
+            "TV_WEBHOOK_" + tradeId
+         );
    }
+
+   // -------------------------------------------------------------
+   // SELL
+   // -------------------------------------------------------------
+
    else if(action == "SELL")
    {
-      double bid = SymbolInfoDouble(symbol, SYMBOL_BID);
-      if(symbol == "BTC") volume = 1.0;
-      success = trade.Sell(volume, symbol, bid, sl, tp, "TV_WEBHOOK_" + tradeId);
+      double bid =
+         SymbolInfoDouble(
+            symbol,
+            SYMBOL_BID
+         );
+
+      if(bid <= 0)
+      {
+         Print(
+            "❌ Invalid BTCUSD BID price."
+         );
+
+         return;
+      }
+
+      success =
+         trade.Sell(
+            volume,
+            symbol,
+            bid,
+            sl,
+            tp,
+            "TV_WEBHOOK_" + tradeId
+         );
    }
 
-   ulong resultTicket = trade.ResultOrder();
-   double fillPrice   = trade.ResultPrice();
+   // -------------------------------------------------------------
+   // Unknown action
+   // -------------------------------------------------------------
 
-   if(success && resultTicket > 0)
+   else
    {
-      Print("✅ Order Filled! Ticket: ", resultTicket, " Price: ", fillPrice);
-      SendExecutionResult(orderId, tradeId, resultTicket, fillPrice, "FILLED", "");
+      Print(
+         "❌ Unknown trading action: ",
+         action
+      );
+
+      return;
+   }
+
+   // -------------------------------------------------------------
+   // Result
+   // -------------------------------------------------------------
+
+   ulong resultTicket =
+      trade.ResultOrder();
+
+   double fillPrice =
+      trade.ResultPrice();
+
+   if(
+      success &&
+      resultTicket > 0
+   )
+   {
+      Print(
+         "✅ Order Filled!",
+         " Ticket: ",
+         resultTicket,
+         " Price: ",
+         fillPrice
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         resultTicket,
+         fillPrice,
+         "FILLED",
+         ""
+      );
    }
    else
    {
-      string errorDesc = StringFormat("ErrCode: %d, RetCode: %d", GetLastError(), trade.ResultRetcode());
-      Print("❌ Order Placement Failed: ", errorDesc);
-      SendExecutionResult(orderId, tradeId, 0, 0, "FAILED", errorDesc);
+      string errorDesc =
+         StringFormat(
+            "ErrCode: %d, RetCode: %d",
+            GetLastError(),
+            trade.ResultRetcode()
+         );
+
+      Print(
+         "❌ Order Placement Failed: ",
+         errorDesc
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         0,
+         0,
+         "FAILED",
+         errorDesc
+      );
    }
 }
 
 //+------------------------------------------------------------------+
-//| Execute Position Close on MT5                                    |
+//| Execute position close                                           |
 //+------------------------------------------------------------------+
-void ExecuteCloseOrder(string orderId, string tradeId, ulong ticket)
+void ExecuteCloseOrder(
+   string orderId,
+   string tradeId,
+   ulong ticket
+)
 {
-   Print("⚡ Closing MT5 Position Ticket: ", ticket);
+   Print(
+      "⚡ Closing MT5 Position Ticket: ",
+      ticket
+   );
 
-   bool success = false;
-   if(ticket > 0 && PositionSelectByTicket(ticket))
+   if(
+      ticket == 0 ||
+      !PositionSelectByTicket(ticket)
+   )
    {
-      string posSymbol = PositionGetString(POSITION_SYMBOL);
-      if(posSymbol != "") trade.SetTypeFillingBySymbol(posSymbol);
-      double closePrice = PositionGetDouble(POSITION_PRICE_CURRENT);
-      double profit     = PositionGetDouble(POSITION_PROFIT);
-      success           = trade.PositionClose(ticket);
+      Print(
+         "⚠️ Position Ticket ",
+         ticket,
+         " not found."
+      );
 
-      if(success)
-      {
-         Print("✅ Position Closed! Ticket: ", ticket, " Close Price: ", closePrice, " PnL: ", profit);
-         SendTradeClosed(tradeId, ticket, closePrice, profit, "MANUAL_EXIT");
-         SendExecutionResult(orderId, tradeId, ticket, closePrice, "SUCCESS", "");
-         return;
-      }
+      SendTradeClosed(
+         tradeId,
+         ticket,
+         0,
+         0,
+         "ALREADY_CLOSED"
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         ticket,
+         0,
+         "IGNORED",
+         "Position not found"
+      );
+
+      return;
    }
 
-   Print("⚠️ Position Ticket ", ticket, " not found or already closed.");
-   SendTradeClosed(tradeId, ticket, 0, 0, "ALREADY_CLOSED");
-   SendExecutionResult(orderId, tradeId, ticket, 0, "FAILED", "Position Not Found");
-}
+   string posSymbol =
+      PositionGetString(
+         POSITION_SYMBOL
+      );
 
-//+------------------------------------------------------------------+
-//| Callback: Send Order Execution Result to Backend                 |
-//+------------------------------------------------------------------+
-void SendExecutionResult(string orderId, string tradeId, ulong ticket, double fillPrice, string status, string comment)
-{
-   string json = StringFormat(
-      "{\"orderId\":\"%s\",\"tradeId\":\"%s\",\"ticket\":%I64u,\"fillPrice\":%.2f,\"status\":\"%s\",\"comment\":\"%s\"}",
-      orderId, tradeId, ticket, fillPrice, status, comment
+   if(posSymbol != "")
+   {
+      trade.SetTypeFillingBySymbol(
+         posSymbol
+      );
+   }
+
+   double closePrice =
+      PositionGetDouble(
+         POSITION_PRICE_CURRENT
+      );
+
+   double profit =
+      PositionGetDouble(
+         POSITION_PROFIT
+      );
+
+   bool success =
+      trade.PositionClose(
+         ticket
+      );
+
+   if(success)
+   {
+      Print(
+         "✅ Position Closed!",
+         " Ticket: ",
+         ticket,
+         " Close Price: ",
+         closePrice,
+         " PnL: ",
+         profit
+      );
+
+      SendTradeClosed(
+         tradeId,
+         ticket,
+         closePrice,
+         profit,
+         "MANUAL_EXIT"
+      );
+
+      SendExecutionResult(
+         orderId,
+         tradeId,
+         ticket,
+         closePrice,
+         "SUCCESS",
+         ""
+      );
+
+      return;
+   }
+
+   string errorDesc =
+      StringFormat(
+         "Position Close Failed | Error: %d | RetCode: %d",
+         GetLastError(),
+         trade.ResultRetcode()
+      );
+
+   Print(
+      "❌ ",
+      errorDesc
    );
-   string response;
-   SendHttpRequest("POST", "/api/mt5/execution-result", json, response);
-}
 
-//+------------------------------------------------------------------+
-//| Callback: Send Closed Trade Result & Realized PnL to Backend     |
-//+------------------------------------------------------------------+
-void SendTradeClosed(string tradeId, ulong ticket, double exitPrice, double pnl, string reason)
-{
-   string json = StringFormat(
-      "{\"tradeId\":\"%s\",\"ticket\":%I64u,\"exitPrice\":%.2f,\"pnl\":%.2f,\"reason\":\"%s\"}",
-      tradeId, ticket, exitPrice, pnl, reason
+   SendExecutionResult(
+      orderId,
+      tradeId,
+      ticket,
+      0,
+      "FAILED",
+      errorDesc
    );
-   string response;
-   SendHttpRequest("POST", "/api/mt5/trade-closed", json, response);
 }
 
 //+------------------------------------------------------------------+
-//| Callback: Send Account Telemetry Sync to Backend                 |
+//| Send execution result                                            |
+//+------------------------------------------------------------------+
+void SendExecutionResult(
+   string orderId,
+   string tradeId,
+   ulong ticket,
+   double fillPrice,
+   string status,
+   string comment
+)
+{
+   string json =
+      StringFormat(
+         "{\"orderId\":\"%s\","
+         "\"tradeId\":\"%s\","
+         "\"ticket\":%I64u,"
+         "\"fillPrice\":%.2f,"
+         "\"status\":\"%s\","
+         "\"comment\":\"%s\"}",
+         orderId,
+         tradeId,
+         ticket,
+         fillPrice,
+         status,
+         comment
+      );
+
+   string response;
+
+   SendHttpRequest(
+      "POST",
+      "/api/mt5/execution-result",
+      json,
+      response
+   );
+}
+
+//+------------------------------------------------------------------+
+//| Send closed trade                                                |
+//+------------------------------------------------------------------+
+void SendTradeClosed(
+   string tradeId,
+   ulong ticket,
+   double exitPrice,
+   double pnl,
+   string reason
+)
+{
+   string json =
+      StringFormat(
+         "{\"tradeId\":\"%s\","
+         "\"ticket\":%I64u,"
+         "\"exitPrice\":%.2f,"
+         "\"pnl\":%.2f,"
+         "\"reason\":\"%s\"}",
+         tradeId,
+         ticket,
+         exitPrice,
+         pnl,
+         reason
+      );
+
+   string response;
+
+   SendHttpRequest(
+      "POST",
+      "/api/mt5/trade-closed",
+      json,
+      response
+   );
+}
+
+//+------------------------------------------------------------------+
+//| Account telemetry                                                |
 //+------------------------------------------------------------------+
 void SendAccountSync()
 {
-   double balance    = AccountInfoDouble(ACCOUNT_BALANCE);
-   double equity     = AccountInfoDouble(ACCOUNT_EQUITY);
-   double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
-   long   login      = AccountInfoInteger(ACCOUNT_LOGIN);
-   string server     = AccountInfoString(ACCOUNT_SERVER);
+   double balance =
+      AccountInfoDouble(
+         ACCOUNT_BALANCE
+      );
 
-   string json = StringFormat(
-      "{\"account\":{\"login\":%I64d,\"server\":\"%s\",\"balance\":%.2f,\"equity\":%.2f,\"freeMargin\":%.2f}}",
-      login, server, balance, equity, freeMargin
-   );
+   double equity =
+      AccountInfoDouble(
+         ACCOUNT_EQUITY
+      );
+
+   double freeMargin =
+      AccountInfoDouble(
+         ACCOUNT_MARGIN_FREE
+      );
+
+   long login =
+      AccountInfoInteger(
+         ACCOUNT_LOGIN
+      );
+
+   string server =
+      AccountInfoString(
+         ACCOUNT_SERVER
+      );
+
+   string json =
+      StringFormat(
+         "{\"account\":{"
+         "\"login\":%I64d,"
+         "\"server\":\"%s\","
+         "\"balance\":%.2f,"
+         "\"equity\":%.2f,"
+         "\"freeMargin\":%.2f"
+         "}}",
+         login,
+         server,
+         balance,
+         equity,
+         freeMargin
+      );
+
    string response;
-   SendHttpRequest("POST", "/api/mt5/sync", json, response);
+
+   SendHttpRequest(
+      "POST",
+      "/api/mt5/sync",
+      json,
+      response
+   );
 }
 
 //+------------------------------------------------------------------+
-//| Helper to parse simple JSON string values                        |
+//| Extract JSON value                                               |
 //+------------------------------------------------------------------+
-string ExtractJsonValue(string json, string key)
+string ExtractJsonValue(
+   string json,
+   string key
+)
 {
-   string pattern = "\"" + key + "\":";
-   int pos = StringFind(json, pattern);
-   if(pos < 0) return "";
+   string pattern =
+      "\"" + key + "\":";
 
-   int start = pos + StringLen(pattern);
-   // Skip whitespace
-   while(start < StringLen(json) && (StringSubstr(json, start, 1) == " " || StringSubstr(json, start, 1) == "\""))
+   int pos =
+      StringFind(
+         json,
+         pattern
+      );
+
+   if(pos < 0)
+      return "";
+
+   int start =
+      pos + StringLen(pattern);
+
+   while(
+      start < StringLen(json) &&
+      (
+         StringSubstr(
+            json,
+            start,
+            1
+         ) == " " ||
+
+         StringSubstr(
+            json,
+            start,
+            1
+         ) == "\""
+      )
+   )
    {
       start++;
    }
 
    int end = start;
-   while(end < StringLen(json))
+
+   while(
+      end < StringLen(json)
+   )
    {
-      string ch = StringSubstr(json, end, 1);
-      if(ch == "\"" || ch == "," || ch == "}") break;
+      string ch =
+         StringSubstr(
+            json,
+            end,
+            1
+         );
+
+      if(
+         ch == "\"" ||
+         ch == "," ||
+         ch == "}"
+      )
+      {
+         break;
+      }
+
       end++;
    }
 
-   return StringSubstr(json, start, end - start);
+   return StringSubstr(
+      json,
+      start,
+      end - start
+   );
 }
 
 //+------------------------------------------------------------------+
-//| Transaction event handler (Detects automated SL/TP hits on MT5) |
+//| Trade transaction event                                          |
 //+------------------------------------------------------------------+
-void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
+void OnTradeTransaction(
+   const MqlTradeTransaction &trans,
+   const MqlTradeRequest &request,
+   const MqlTradeResult &result
+)
 {
-   if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
+   if(
+      trans.type !=
+      TRADE_TRANSACTION_DEAL_ADD
+   )
    {
-      ulong dealTicket = trans.deal;
-      if(dealTicket == lastProcessedDeal) return;
+      return;
+   }
 
-      lastProcessedDeal = dealTicket;
-      long entry = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+   ulong dealTicket =
+      trans.deal;
 
-      // Entry OUT means position closed (SL, TP, or manual close)
-      if(entry == DEAL_ENTRY_OUT)
+   if(
+      dealTicket ==
+      lastProcessedDeal
+   )
+   {
+      return;
+   }
+
+   lastProcessedDeal =
+      dealTicket;
+
+   long entry =
+      HistoryDealGetInteger(
+         dealTicket,
+         DEAL_ENTRY
+      );
+
+   // -------------------------------------------------------------
+   // Position closed
+   // -------------------------------------------------------------
+
+   if(
+      entry ==
+      DEAL_ENTRY_OUT
+   )
+   {
+      ulong positionId =
+         HistoryDealGetInteger(
+            dealTicket,
+            DEAL_POSITION_ID
+         );
+
+      double exitPrice =
+         HistoryDealGetDouble(
+            dealTicket,
+            DEAL_PRICE
+         );
+
+      double profit =
+         HistoryDealGetDouble(
+            dealTicket,
+            DEAL_PROFIT
+         );
+
+      long reasonCode =
+         HistoryDealGetInteger(
+            dealTicket,
+            DEAL_REASON
+         );
+
+      string reason =
+         "CLOSED";
+
+      if(
+         reasonCode ==
+         DEAL_REASON_SL
+      )
       {
-         ulong  positionId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-         double exitPrice  = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
-         double profit     = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
-         long   reasonCode = HistoryDealGetInteger(dealTicket, DEAL_REASON);
-
-         string reason = "CLOSED";
-         if(reasonCode == DEAL_REASON_SL) reason = "SL_HIT";
-         else if(reasonCode == DEAL_REASON_TP) reason = "TARGET_HIT";
-
-         Print("🚨 MT5 Position Closed Event Detected! Ticket: ", positionId, " PnL: ", profit, " Reason: ", reason);
-         SendTradeClosed("", positionId, exitPrice, profit, reason);
+         reason = "SL_HIT";
       }
+      else if(
+         reasonCode ==
+         DEAL_REASON_TP
+      )
+      {
+         reason = "TARGET_HIT";
+      }
+
+      Print(
+         "🚨 MT5 Position Closed Event",
+         " | Ticket: ",
+         positionId,
+         " | PnL: ",
+         profit,
+         " | Reason: ",
+         reason
+      );
+
+      SendTradeClosed(
+         "",
+         positionId,
+         exitPrice,
+         profit,
+         reason
+      );
    }
 }
 //+------------------------------------------------------------------+

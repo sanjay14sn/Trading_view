@@ -11,7 +11,19 @@ const tradeSchema = new mongoose.Schema({
     exitTime: { type: Date },
     status: {
         type: String,
-        enum: ['PENDING', 'QUEUED', 'OPEN', 'PARTIAL', 'FILLED', 'SL_HIT', 'TARGET_HIT', 'TIMED_EXIT', 'CANCELLED', 'FAILED'],
+        enum: [
+            'PENDING',
+            'QUEUED',
+            'OPEN',
+            'PARTIAL',
+            'FILLED',
+            'CLOSED',
+            'SL_HIT',
+            'TARGET_HIT',
+            'TIMED_EXIT',
+            'CANCELLED',
+            'FAILED'
+        ],
         default: 'PENDING',
         index: true
     },
