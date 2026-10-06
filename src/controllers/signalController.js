@@ -80,8 +80,37 @@ const postSignal = async (req, res) => {
 
             // Check for existing active open trade for this symbol
             const activeTrade = isDbConnected()
-                ? await Trade.findOne({ symbol: futuresSymbol, status: { $in: ['OPEN', 'PENDING', 'QUEUED'] } })
+                ? await Trade.findOne({ symbol: futuresSymbol, status: { $in: ['OPEN', 'PENDING', 'QUEUED'] } }).sort({ createdAt: -1 })
                 : mockStore.trades.find(t => (t.symbol === futuresSymbol || t.symbol === symbolInput) && (t.status === 'OPEN' || t.status === 'PENDING'));
+
+
+            const pendingReverse = Array.from(
+                mt5OrderManager.pendingOrders.values()
+            ).find(order => {
+                const orderSymbol =
+                    instrumentMapper.getFuturesSymbol(order.symbol || '');
+
+                return (
+                    orderSymbol === futuresSymbol &&
+                    order.type === 'REVERSE'
+                );
+            });
+
+            if (pendingReverse) {
+                console.log(
+                    `⏳ Reversal already pending for ${futuresSymbol}: ${pendingReverse.orderId}`
+                );
+
+                await signalDoc.updateOne({
+                    status: 'ignored',
+                    rejectionReason: 'reversal_already_pending'
+                });
+
+                return res.status(200).json({
+                    status: 'ignored',
+                    reason: 'reversal_already_pending'
+                });
+            }
 
             if (activeTrade) {
                 const isSameDirection = activeTrade.action.toUpperCase() === actionInput.toUpperCase();

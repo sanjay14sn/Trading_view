@@ -63,21 +63,64 @@ class MT5OrderManager {
      */
     async createReverseOrder(newTradeRecord, existingTradeRecord, signalData = {}) {
         this.orderCounter++;
+
         const orderId = `REV_MT5_${Date.now()}_${this.orderCounter}`;
 
-        const rawSym = newTradeRecord.symbol || signalData.symbol || config.mt5.symbol || 'BTC';
+        const rawSym =
+            newTradeRecord.symbol ||
+            signalData.symbol ||
+            config.mt5.symbol ||
+            'BTC';
+
         const symbol = instrumentMapper.getFuturesSymbol(rawSym);
-        const action = newTradeRecord.action ? newTradeRecord.action.toUpperCase() : 'BUY';
-        let volume = newTradeRecord.quantity || config.mt5.defaultLotSize || 1.0;
-        if (symbol === 'BTC') volume = 1.0;
-        const price = newTradeRecord.entryPrice || signalData.price || 0;
+
+        const action = newTradeRecord.action
+            ? newTradeRecord.action.toUpperCase()
+            : 'BUY';
+
+        let volume =
+            newTradeRecord.quantity ||
+            config.mt5.defaultLotSize ||
+            1.0;
+
+        if (symbol === 'BTC') {
+            volume = 1.0;
+        }
+
+        const price =
+            newTradeRecord.entryPrice ||
+            signalData.price ||
+            0;
+
+        // ============================================================
+        // IMPORTANT:
+        // Remove every older pending order for this symbol.
+        // Only the newest reversal is allowed to exist.
+        // ============================================================
+
+        for (const [oldOrderId, oldOrder] of this.pendingOrders.entries()) {
+
+            const oldSymbol =
+                instrumentMapper.getFuturesSymbol(
+                    oldOrder.symbol || ''
+                );
+
+            if (oldSymbol === symbol) {
+
+                console.log(
+                    `🧹 Removing stale MT5 order: ${oldOrderId} | ${oldOrder.type} | ${oldOrder.action} | ${symbol}`
+                );
+
+                this.pendingOrders.delete(oldOrderId);
+            }
+        }
 
         const reverseOrder = {
             orderId,
             tradeId: String(newTradeRecord._id),
             closeTradeId: String(existingTradeRecord._id),
             closeTicket: existingTradeRecord.mt5Ticket || 0,
-            type: 'REVERSE', // Atomic Close + Open opposite direction
+            type: 'REVERSE',
             symbol,
             action,
             volume,
