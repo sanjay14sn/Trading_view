@@ -109,6 +109,16 @@ class MT5OrderManager {
     getPendingOrders() {
         const orders = Array.from(this.pendingOrders.values());
 
+        console.log('==========================================');
+        console.log('📡 MT5 PENDING ORDER POLL');
+        console.log('📦 Total orders in memory:', orders.length);
+
+        orders.forEach(order => {
+            console.log(
+                `➡️ ${order.orderId} | ${order.type} | ${order.action} | ${order.symbol} | Trade: ${order.tradeId}`
+            );
+        });
+
         const bySymbol = new Map();
 
         for (const order of orders) {
@@ -125,14 +135,12 @@ class MT5OrderManager {
 
         for (const [symbol, symbolOrders] of bySymbol.entries()) {
 
-            // REVERSE always has priority
             const reverseOrders = symbolOrders.filter(
                 order => order.type === 'REVERSE'
             );
 
             if (reverseOrders.length > 0) {
 
-                // Keep only the newest REVERSE
                 reverseOrders.sort(
                     (a, b) =>
                         new Date(b.createdAt) -
@@ -141,11 +149,13 @@ class MT5OrderManager {
 
                 result.push(reverseOrders[0]);
 
+                console.log(
+                    `🔄 RETURNING REVERSE: ${reverseOrders[0].orderId} | ${reverseOrders[0].action} | ${symbol}`
+                );
+
                 continue;
             }
 
-            // No reversal pending.
-            // Keep only the newest order for this symbol.
             symbolOrders.sort(
                 (a, b) =>
                     new Date(b.createdAt) -
@@ -153,11 +163,17 @@ class MT5OrderManager {
             );
 
             result.push(symbolOrders[0]);
+
+            console.log(
+                `📤 RETURNING OPEN: ${symbolOrders[0].orderId} | ${symbolOrders[0].action} | ${symbol}`
+            );
         }
+
+        console.log('📤 Orders returned to MT5:', result.length);
+        console.log('==========================================');
 
         return result;
     }
-
     /**
      * Handle execution confirmation posted back from MT5 EA
      */
